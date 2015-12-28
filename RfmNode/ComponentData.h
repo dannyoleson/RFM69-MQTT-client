@@ -16,6 +16,8 @@ class ComponentDataClass
 	 bool m_shouldSend;
 	 uint8_t m_dataPin;
 	 int m_valueToSend;
+	 long m_lastSendTime;
+	 bool m_firstRun;
 
 	 // callback types
 	 typedef int(*int_call_back)(void);
@@ -24,6 +26,7 @@ class ComponentDataClass
  public:
 	long txInterval;
 	int deviceId;
+	bool periodicSendEnabled;
 
 	ComponentDataClass(int id, uint8_t pin);
 	ComponentDataClass(int id, uint8_t pin, long overrideTxInterval);
@@ -33,6 +36,8 @@ class ComponentDataClass
 
 extern ComponentDataClass *connectedComponents[100];
 extern int connectedComponentsCount;
+extern unsigned long currentTime;
+extern long thisCycleActualMillis;
 
 #endif
 

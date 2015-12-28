@@ -19,20 +19,28 @@ int DigitalInputDataClass::getState()
 
 bool DigitalInputDataClass::getShouldSend()
 {
-	bool shouldSend = false;
+	bool shouldSend = m_shouldSend;
+	bool isFirstRun = m_lastInputTime == -1;
+
 	int currentState = getState();
-	if (((millis() - m_lastInputTime > (long)m_inputDelay) && m_lastState != currentState))
+	if ((((currentTime - m_lastInputTime > (long)m_inputDelay) && m_lastState != currentState))
+		|| isFirstRun)
 	{
 		m_lastState = currentState;
 		shouldSend = true;
+		m_lastInputTime = currentTime;
 	}
-
-	if (shouldSend || m_shouldSend)
+	else if (periodicSendEnabled)
 	{
-		m_lastInputTime = millis();
+		if ((currentTime - m_lastInputTime) > txInterval)
+		{
+			shouldSend = true;
+			m_lastInputTime = currentTime;
+		}
 	}
 
-	return shouldSend || m_shouldSend;
+
+	return shouldSend;
 }
 
 void DigitalInputDataClass::setShouldSend(bool shouldSendData)
@@ -48,5 +56,10 @@ long DigitalInputDataClass::getLastInputTime()
 int DigitalInputDataClass::getValueToSend()
 {
 	return getState();
+}
+
+bool DigitalInputDataClass::getIsButton()
+{
+	return m_isButton;
 }
 

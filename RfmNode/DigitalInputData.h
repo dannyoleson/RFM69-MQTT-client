@@ -17,6 +17,8 @@ class DigitalInputDataClass : public ComponentDataClass
 	 int m_inputDelay;
 	 long m_lastInputTime;
 	 int m_lastState;
+	 // crappy hack for determining whether or not this is an instance of ButtonInputData
+	 bool m_isButton = false;
 
  public:
 	 DigitalInputDataClass(int id, uint8_t pin, int inputDelay);
@@ -25,6 +27,7 @@ class DigitalInputDataClass : public ComponentDataClass
 	 void setShouldSend(bool shouldSendData);
 	 long getLastInputTime();
 	 int getValueToSend();
+	 bool getIsButton();
 	 virtual void handleTimer() { ; }
 	 virtual void handleInput() { ; }
 };

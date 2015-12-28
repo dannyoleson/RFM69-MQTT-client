@@ -14,11 +14,11 @@
 class NodeSystemDataClass : public ComponentDataClass
 {
  protected:
-	 int_call_back getValueCB;
+	 flt_call_back getValueCB;
 
  public:
-	 NodeSystemDataClass(int id, uint8_t pin, int_call_back getValueCallBack);
-	 int getValueToSend();
+	 NodeSystemDataClass(int id, uint8_t pin, flt_call_back getValueCallBack);
+	 float getValueToSend();
 };
 
 #endif

@@ -63,7 +63,7 @@
 #include "AnalogSensorData.h"
 #include "ComponentData.h"
 #include <RFM69.h>
-//#include <RFM69_ATC.h>
+#include <RFM69_ATC.h>
 #include <SPI.h>
 #include <DHT.h>
 #include <LowPower.h>
@@ -206,7 +206,7 @@ typedef struct {					// Radio packet format
 
 Message mes;
 
-RFM69 radio;
+RFM69_ATC radio;
 
 // adding components in setup() will add to this array and increment the count
 ComponentDataClass *connectedComponents[100];
@@ -275,6 +275,16 @@ AnalogSensorDataClass *flameSensorData;
 AnalogSensorDataClass *gasSensorData;
 #endif //GASSENSORENABELD
 
+void wakeUpHandler()
+{
+	// wakeup handler
+}
+
+//use this to track how many times we've woken up
+long numWakes;
+unsigned long currentTime;
+long thisCycleActualMillis;
+
 //
 //=====================		SETUP	========================================
 //
@@ -286,10 +296,19 @@ void setup() {
 	versionData = new NodeSystemDataClass(VERSIONDEVICEID, NULL, NULL);
 	voltageData = new NodeSystemDataClass(VOLTAGEDEVICEID, NULL, &getVoltage);
 	ackData = new NodeSystemDataClass(ACKDEVICEID, NULL, &getAck);
+#ifdef LOWPOWERNODE
+	//pinMode(REEDSWITCHPIN, INPUT);
+	// if running on low power, you won't be able to query.  These will always send their status ever txInterval seconds
+	uptimeData->periodicSendEnabled = true;
+	rssiData->periodicSendEnabled = true;
+	voltageData->periodicSendEnabled = true;
+#endif //LOWPOWERNODE
+
 #ifdef BUTTONENABLED
 	toggleData = new NodeSystemDataClass(TOGGLEDEVICEID, NULL, &getToggleState);
 	timerData = new NodeSystemDataClass(TIMERDEVICEID, NULL, &getTimerInterval);
 #endif //BUTTONENABLED
+
 	// instantiate error devices
 	connectionError = new ErrorDataClass(WIRELESSCONNECTIONERROR, NULL);
 	unknownDevice = new ErrorDataClass(UNSUPPORTEDDEVICE, NULL);
@@ -311,6 +330,7 @@ void setup() {
 
 #ifdef REEDSWITCHENABLED
 	reedSwitchData = new DigitalInputDataClass(REEDSWITCHDEVICEID, REEDSWITCHPIN, 1000);
+	//reedSwitchData->periodicSendEnabled = true;
 #endif //REEDSWITCHENABLED
 
 	// instantiate real data sensors - callbacks are required
@@ -320,7 +340,9 @@ void setup() {
 	bool forceReading = false;
 	long overrideTxInterval = 30 * 1000;
 	dhtTempSensorData = new RealInputDataClass(DHTTEMPDEVICEID, DHTPIN, overrideTxInterval, &getDhtTemperatureFarenheit);
+	dhtTempSensorData->periodicSendEnabled = true;
 	dhtHumSensorData = new RealInputDataClass(DHTHUMIDITYDEVICEID, DHTPIN, overrideTxInterval, &getDhtHumidity);
+	dhtHumSensorData->periodicSendEnabled = true;
 #endif //DHTSENSORENABLED
 
 	// instantiate analog sensors - no callback required
@@ -349,7 +371,7 @@ void setup() {
 	radio.encrypt(ENCRYPTKEY);				// set radio encryption	`
 	radio.promiscuous(promiscuousMode);			// only listen to closed network
 
-	//radio.enableAutoPower(-90);
+	radio.enableAutoPower(-90);
 
 #ifdef DEBUG
 	Serial.print("Node Software Version ");
@@ -358,6 +380,8 @@ void setup() {
 	Serial.print(FREQUENCY == RF69_433MHZ ? 433 : FREQUENCY == RF69_868MHZ ? 868 : 915);
 	Serial.println(" Mhz...");
 #endif
+
+	numWakes = 0;
 }	// end setup
 
 //
@@ -366,26 +390,37 @@ void setup() {
 //
 void loop() {
 	// RECEIVE radio input
-	//
 #ifdef LOWPOWERNODE
 	radio.sleep();
+	//delay(500);
+	//attachInterrupt(1, wakeUpHandler, HIGH);
+	//attachInterrupt(1, wakeUpHandler, LOW);
+	LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
+	thisCycleActualMillis = millis();
+	numWakes++;
+	currentTime =  millis() + (numWakes * 2000);
+	Serial.println(currentTime);
+	//detachInterrupt(1);
 	delay(500);
 #else
 	if (receiveData())
 	{
 		parseCmd();				// receive and parse any radio input
 	}
+	currentTime = millis();
 #endif
 
 	// find buttons and handle their timers appropriately
 	for (int componentNum = 0; componentNum < connectedComponentsCount; componentNum++)
 	{
-		ComponentDataClass *thisDevice = connectedComponents[componentNum];
 		if (ISDIGITALINPUTSENSOR(componentNum))
 		{
-				DigitalInputDataClass *thisDigitalInput = (DigitalInputDataClass *)thisDevice;
+			DigitalInputDataClass *thisDigitalInput = (DigitalInputDataClass *)connectedComponents[componentNum];
+			if (thisDigitalInput->getIsButton())
+			{
 				thisDigitalInput->handleInput();
 				thisDigitalInput->handleTimer();
+			}
 		}
 	}
 
@@ -577,7 +612,9 @@ void sendMsg() {					// prepares values to be transmitted
 			if (nodeDevice->getShouldSend())
 			{
 				mes.devID = nodeDevice->deviceId;
-				mes.intVal = nodeDevice->getValueToSend();
+				// node devices can be floats or ints - setting both to catch all
+				mes.fltVal = nodeDevice->getValueToSend();
+				mes.intVal = (int)nodeDevice->getValueToSend();
 				txRadio();
 				nodeDevice->setShouldSend(false);
 			}
@@ -693,12 +730,12 @@ void txRadio()						// Transmits the 'mes'-struct to the gateway
 //
 // 
 
-int getUptime()
+float getUptime()
 {
-	return millis() / 60000;
+	return currentTime / 60000;
 }
 
-int getTxInterval()
+float getTxInterval()
 {
 	int returnValue = -1;
 	if (connectedComponentsCount > 0)
@@ -708,12 +745,12 @@ int getTxInterval()
 	return returnValue;
 }
 
-int getSignalStrength()
+float getSignalStrength()
 {
 	return radio.RSSI;
 }
 
-int getVoltage()
+float getVoltage()
 {
 	long voltage;					// Read 1.1V reference against AVcc
 	ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
@@ -723,12 +760,12 @@ int getVoltage()
 	voltage = ADCL;
 	voltage |= ADCH << 8;
 	voltage = 1126400L / voltage; 	// Back-calculate in mV
-	return (int)(voltage / 1000.0);
+	return float(voltage / 1000.0);
 }
 
-int getAck()
+float getAck()
 {
-	return setAck;
+	return setAck * 1.0;
 }
 
 #ifdef BUTTONENABLED

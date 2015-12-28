@@ -22,13 +22,27 @@ RealInputDataClass::RealInputDataClass(int id, int pin, long overrideTxInterval,
 
 bool RealInputDataClass::getShouldSend()
 {
-
 	bool firstRun = lastTxTime == -1;
-	return (firstRun || m_shouldSend || ((millis() - lastTxTime) > txInterval));
+
+	if (periodicSendEnabled)
+	{
+		m_shouldSend = (currentTime - lastTxTime) > txInterval;
+	}
+	return (firstRun || m_shouldSend);
 }
 
 float RealInputDataClass::getValueToSend()
 {
-	lastTxTime = millis();
+	int sensorHoldoffTime = 2500;
+	int delayTime = sensorHoldoffTime - (millis() - thisCycleActualMillis);
+	Serial.print("sensor has been powered on for ");
+	Serial.println(millis() - thisCycleActualMillis);
+	Serial.print("waiting for - ");
+	Serial.println(delayTime);
+	if (delayTime > 0)
+	{
+		delay(delayTime);
+	}
+	lastTxTime = currentTime;
 	return getValueCB();
 }
