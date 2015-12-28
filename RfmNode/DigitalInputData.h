@@ -14,18 +14,19 @@
 class DigitalInputDataClass : public ComponentDataClass
 {
  protected:
-	 int inputDelay;
-	 long lastInputTime;
-	 int lastState;
-	 int currentState;
+	 int m_inputDelay;
+	 long m_lastInputTime;
+	 int m_lastState;
 
  public:
-	 DigitalInputDataClass(int id, uint8_t pin, int delay);
+	 DigitalInputDataClass(int id, uint8_t pin, int inputDelay);
 	 int getState();
 	 bool getShouldSend();
 	 void setShouldSend(bool shouldSendData);
 	 long getLastInputTime();
 	 int getValueToSend();
+	 virtual void handleTimer() { ; }
+	 virtual void handleInput() { ; }
 };
 
 #endif

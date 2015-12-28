@@ -17,26 +17,34 @@ AnalogSensorDataClass::AnalogSensorDataClass(
 	lastReading = -1;
 }
 
-bool AnalogSensorDataClass::shouldSend()
+bool AnalogSensorDataClass::getShouldSend()
 {
-	bool firstRun = lastPollTime == -1 || lastReading == -1;
-	if (firstRun || ((millis() - lastPollTime) > pollInterval))
+	bool shouldSendData = false;
+	if (((millis() - lastPollTime) > pollInterval))
 	{
-		int currentLevel = analogRead(dataPin);
-		lastPollTime = millis();
-
-		if (firstRun ||
-			currentLevel < lastReading - deltaThreshold ||
-			currentLevel > lastReading + deltaThreshold)
+		if (m_shouldSend)
 		{
-			lastReading = currentLevel;
-			valueToSend = currentLevel;
+			shouldSendData = true;
+		}
+		else
+		{
+			int currentLevel = analogRead(m_dataPin);
+			lastPollTime = millis();
+
+			if (currentLevel < lastReading - deltaThreshold ||
+				currentLevel > lastReading + deltaThreshold)
+			{
+				lastReading = currentLevel;
+				valueToSend = currentLevel;
+				shouldSendData = true;
+			}
 		}
 	}
+	return shouldSendData;
 }
 
 int AnalogSensorDataClass::getValueToSend()
 {
-	return analogRead(dataPin);
+	return valueToSend;
 }
 

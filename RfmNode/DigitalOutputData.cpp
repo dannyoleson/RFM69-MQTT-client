@@ -20,7 +20,7 @@ int DigitalOutputDataClass::getState()
 void DigitalOutputDataClass::setState(int stateToSet)
 {
 	state = stateToSet;
-	digitalWrite(dataPin, state);
+	digitalWrite(m_dataPin, state);
 }
 
 int DigitalOutputDataClass::getValueToSend()

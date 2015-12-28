@@ -6,20 +6,31 @@
 
 ComponentDataClass::ComponentDataClass(int id, uint8_t pin)
 {
+	txInterval = 20 * 1000;
 	deviceId = id;
-	dataPin = pin;
-	shouldSend = false;
+	m_dataPin = pin;
+	m_shouldSend = false;
+	connectedComponents[connectedComponentsCount] = this;
+	connectedComponentsCount++;
+}
+
+ComponentDataClass::ComponentDataClass(int id, uint8_t pin, long overrideTxInterval)
+{
+	txInterval = overrideTxInterval;
+	deviceId = id;
+	m_dataPin = pin;
+	m_shouldSend = false;
 	connectedComponents[connectedComponentsCount] = this;
 	connectedComponentsCount++;
 }
 
 bool ComponentDataClass::getShouldSend()
 {
-	return shouldSend;
+	return m_shouldSend;
 }
 
 void ComponentDataClass::setShouldSend(bool shouldSendData)
 {
-	shouldSendData = shouldSend;
+	m_shouldSend = shouldSendData;
 }
 

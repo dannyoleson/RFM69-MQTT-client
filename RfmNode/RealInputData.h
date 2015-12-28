@@ -15,16 +15,16 @@ class RealInputDataClass : public ComponentDataClass
 {
  protected:
 	 long lastTxTime;
-	 float lastReading;
 	 flt_call_back getValueCB;
 	 bool firstArg;
 	 bool secondArg;
 
  public:
-	bool shouldSend();
+	bool getShouldSend();
 	float getValueToSend();
 
 	RealInputDataClass(int id, int pin, flt_call_back getValueCallBack);
+	RealInputDataClass(int id, int pin, long overrideTxInterval, flt_call_back getValueCallBack);
 };
 
 #endif

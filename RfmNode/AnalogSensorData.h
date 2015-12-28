@@ -23,7 +23,7 @@ class AnalogSensorDataClass : public ComponentDataClass
 	int		valueToSend;
 
 	AnalogSensorDataClass(int sensorPollInterval, int sensorDeltaThreshold, uint8_t sensorDataPin, int sensorDeviceId);
-	bool shouldSend();
+	bool getShouldSend();
 	int getValueToSend();
 };
 

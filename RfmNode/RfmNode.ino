@@ -1,11 +1,11 @@
-// RFM69 DHT node sketch
+// RFM69 node sketch
 //
 // This node talks to the MQTT-Gateway and will:
 // - send sensor data periodically and on-demand
 // - receive commands from the gateway to control actuators
 // - receive commands from the gateway to change settings
 //
-// Several nodes can operate within a single network; each have a unique node ID.
+// Several nodes can operate within a single network; each having a unique node ID.
 // On startup the node operates with default values, set on compilation.
 //
 // Hardware used is a 3.3 Volt 8MHz arduino Pro; this is easier to interface to RFM69 
@@ -52,27 +52,35 @@
 //	version 1.7 by Computourist@gmail.com december 2014
 //	version 2.0 increased payload size; implemented node uptime; standard device type convention; error handling .
 //	version 2.1 removed device 8; changed handling of device 40; compatible with gateway V2.2	; march 2015
+//  version 2.2 lewishollow - dannyoleson@gmail.com - changed format to be object-oriented.  This should make adding devices much easier.
 
+#include "ButtonInputData.h"
 #include "NodeSystemData.h"
 #include "RealInputData.h"
+#include "DigitalOutputData.h"
 #include "DigitalInputData.h"
 #include "AnalogOutputData.h"
-#include "DigitalOutputData.h"
 #include "AnalogSensorData.h"
 #include "ComponentData.h"
 #include <RFM69.h>
+//#include <RFM69_ATC.h>
 #include <SPI.h>
 #include <DHT.h>
+#include <LowPower.h>
 
 //
 // CONFIGURATION PARAMETERS
 //
-#define NODEID 2 					// unique node ID within the closed network
+#define NODEID 3 					// unique node ID within the closed network
 #define GATEWAYID 1					// node ID of the Gateway is always 1
 #define NETWORKID 100					// network ID of the network
 #define ENCRYPTKEY "5029386215036408" 			// 16-char encryption key; same as on Gateway!
 #define DEBUG						// uncomment for debugging
-#define VERSION "DHT V2.2"				// this value can be queried as device 3
+#define VERSION "NDE V2.2"				// this value can be queried as device 3
+#define LOWPOWERNODE				// uncomment for battery-powered node
+
+#define WRITE 0
+#define READ 1
 
 // device ID ranges
 #define NODESYSTEMDEVICERANGEBOTTOM 0
@@ -114,74 +122,78 @@
 #define IS_RFM69HW 					// uncomment only for RFM69HW! 
 #define ACK_TIME 100					// max # of ms to wait for an ack
 
+
+
+// enable or disable common devices here
+//#define PHOTOSENSORENABLED
+#define REEDSWITCHENABLED
+//#define BUTTONENABLED
+//#define ACTUATORENABLED
+//#define FLAMESENSORENABLED
+//#define GASSENSORENABLED
+#define DHTSENSORENABLED
+
+// Binary input settings
+#ifdef BUTTONENABLED
+#define BTN 8						// Button pin
+#define BTNDEVICEID 40
+#endif //BUTTONENABLED
+
+#ifdef REEDSWITCHENABLED
+#define REEDSWITCHPIN 3
+#define REEDSWITCHDEVICEID 41
+#endif //REEDSWITCHENABLED
+
+// Binary output settings
+#ifdef ACTUATORENABLED
+#define ACT1 9						// Actuator pin (LED or relay)
+#define ACTUATORDEVICEID 16
+#endif //ACTUATORENABLED
+
+// Analog sensor settings
+#ifdef PHOTOSENSORENABLED
+#define LIGHTPIN A0
+#define LIGHTSENSORDEVICEID 64
+#endif //PHOTOSENSORENABLED
+
+#ifdef FLAMESENSORENABLED
+#define FLAMEPIN A1
+#define FLAMESENSORDEVICEID 65
+#endif //FLAMESENSORENABLED
+
+#ifdef GASSENSORENABLED
+#define GASPIN A2
+#define GASSENSORDEVICEID 66
+#endif //GASSENSORENABLED
+
+// DHT sensor setting
+#ifdef DHTSENSORENABLED
+#define DHTPIN 4					// DHT data connection
+#define DHTTEMPDEVICEID 48
+#define DHTHUMIDITYDEVICEID 49
+#define	DHTTYPE	DHT22					// type of sensor
+#endif //DHTSENSORENABLED
+
+
 // defining NODESYSTEMDEVICES - not devices as such, but we treat them like devices to keep the code simple
+// DO NOT EDIT THESE DEVICES
 #define UPTIMEDEVICEID 0
 #define TXINTERVALDEVICEID 1
 #define RSSIDEVICEID 2
 #define VERSIONDEVICEID 3
 #define VOLTAGEDEVICEID 4
 #define ACKDEVICEID 5
-#define TOGGLEDEVICEID 6
-#define TIMERDEVICEID 7
-
-// Binary input settings
-#define BTN 8						// Button pin
-#define BTNDEVICEID 40
-
-// Binary output settings
-#define ACT1 9						// Actuator pin (LED or relay)
-#define ACTUATORDEVICEID 16
-
-// Analog sensor settings
-#define LIGHTPIN A0
-#define LIGHTSENSORDEVICEID 64
-#define FLAMEPIN A1
-#define FLAMESENSORDEVICEID 65
-#define GASPIN A2
-#define GASSENSORDEVICEID 66
-
-// DHT sensor setting
-#define DHTPIN 4					// DHT data connection
-#define DHTTEMPDEVICEID 48
-#define DHTHUMIDITYDEVICEID 49
-#define	DHTTYPE	DHT22					// type of sensor
-
-// Misc devices
 #define WIRELESSCONNECTIONERROR 90
 #define UNSUPPORTEDDEVICE 92
 #define WAKEUPNODE 99
 
 #define SERIAL_BAUD 115200
 
-
 //
-//	STARTUP DEFAULTS
+//	VARIABLES
 //
-long 	txInterval = 20*1000;				// periodic transmission interval in ms
-long	timeInterval = 20*1000;				// timer interval in ms
-bool	toggleOnButton = true;				// toggle output on button press
-
-											//
-											//	VARIABLES
-											//
-//long	lastPeriod = -1;				// timestamp last transmission
-//long 	lastBtnPress = -1;				// timestamp last buttonpress
-//long	lastMinute = -1;				// timestamp last minute
-//long	upTime = 0;					// uptime in minutes
-//float	hum, temp;					// humidity, temperature
-//int		ACT1State;					// status ACT1 output
-//int		signalStrength;					// radio signal strength
 bool	setAck = false;					// send ACK message on 'SET' request
-//bool	send0, send1, send2, send3, send4;
-//bool	send5, send6, send7;
-//bool	send16, send40, send48, send49, send92;		// message triggers
 bool	promiscuousMode = false; 			// only listen to nodes within the closed network
-//bool	curState = true;				// current button state
-//bool	lastState = true;				// last button state
-bool	timerOnButton = false;				// timer output on button press
-//bool	msgBlock = false;				// flag to hold button messages to prevent overload
-
-
 
 typedef struct {					// Radio packet format
 	int		nodeID;						// node identifier
@@ -194,21 +206,7 @@ typedef struct {					// Radio packet format
 
 Message mes;
 
-//DHT dht(DHTPIN, DHTTYPE, 3);			// initialise temp/humidity sensor for 3.3 Volt arduino
-DHT dht(DHTPIN, DHTTYPE);				// 5 volt power
 RFM69 radio;
-
-// values used by sensors to check their states
-/*
-typedef struct {
-	int		pollInterval = 2 * 1000;
-	long	lastPollTime = -1;
-	int		lastLevel = -1;
-	int		deltaThreshold = 20; // +/- this delta will trigger a transmission of data
-	int		devID = -1;
-	bool	shouldSend = false;
-} AnalogSensor;
-*/
 
 // adding components in setup() will add to this array and increment the count
 ComponentDataClass *connectedComponents[100];
@@ -218,7 +216,8 @@ int connectedComponentsCount = 0;
 typedef ComponentDataClass ErrorDataClass;
 typedef ComponentDataClass WakeupSignalClass;
 
-// declare node system devices: 0-15
+// declare node system devices, error codes and wake up signal
+// DO NOT MODIFY
 NodeSystemDataClass *uptimeData;
 NodeSystemDataClass *txIntervalData;
 NodeSystemDataClass *rssiData;
@@ -228,73 +227,117 @@ NodeSystemDataClass *ackData;
 NodeSystemDataClass *toggleData;
 NodeSystemDataClass *timerData;
 
-// declare binary output devices (LED, relay): 16-31
-DigitalOutputDataClass *actuatorData;
-
-// declare analog output devices (pwm, dimmer): 32-39
-
-// declare binary input devices (button, switch, PIR-sensor): 40-47
-DigitalInputDataClass *buttonData;
-
-// declare real value sensors (temperature, humidity): 48-63
-RealInputDataClass *dhtTempSensorData;
-RealInputDataClass *dhtHumSensorData;
-
-// declare analog input sensors used in this node (temp, humidity): 64-71
-AnalogSensorDataClass *lightSensorData;
-AnalogSensorDataClass *flameSensorData;
-AnalogSensorDataClass *gasSensorData;
-
 ErrorDataClass *connectionError;
 ErrorDataClass *unknownDevice;
 
 WakeupSignalClass *wakeUp;
 
+// To add devices, declare them below in the appropriate category
+
+// declare binary output devices (LED, relay): 16-31
+#ifdef ACTUATORENABLED
+DigitalOutputDataClass *actuatorData;
+#endif //ACTUATORENABLED
+
+// declare analog output devices (pwm, dimmer): 32-39
+
+// declare binary input devices (button, switch, PIR-sensor): 40-47
+#ifdef BUTTONENABLED
+#define TOGGLEDEVICEID 6
+#define TIMERDEVICEID 7
+long	timeInterval = 20 * 1000;				// timer interval in ms
+bool	toggleOnButton = true;				// toggle output on button press
+DigitalInputDataClass *buttonData;
+#endif //BUTTONENABLED
+
+#ifdef REEDSWITCHENABLED
+DigitalInputDataClass *reedSwitchData;
+#endif //REEDSWITCHENABLED
+
+#ifdef DHTSENSORENABLED
+DHT dht(DHTPIN, DHTTYPE, 3);			// initialise temp/humidity sensor for 3.3 Volt arduino
+//DHT dht(DHTPIN, DHTTYPE);				// 5 volt power
+// declare real value sensors (temperature, humidity): 48-63
+RealInputDataClass *dhtTempSensorData;
+RealInputDataClass *dhtHumSensorData;
+#endif //DHTSENSORENABLED
+
+// declare analog input sensors used in this node (temp, humidity): 64-71
+#ifdef PHOTOSENSORENABLED
+AnalogSensorDataClass *lightSensorData;
+#endif //PHOTOSENSORENABLED
+
+#ifdef FLAMESENSORENABLED
+AnalogSensorDataClass *flameSensorData;
+#endif //FLAMESENSORENABLED
+
+#ifdef GASSENSORENABLED
+AnalogSensorDataClass *gasSensorData;
+#endif //GASSENSORENABELD
+
 //
 //=====================		SETUP	========================================
 //
 void setup() {
-	// instantiate node system devices - callbacks are required
+	// instantiate node system devices - DO NOT MODIFY
 	uptimeData = new NodeSystemDataClass(UPTIMEDEVICEID, NULL, &getUptime);
 	txIntervalData = new NodeSystemDataClass(TXINTERVALDEVICEID, NULL, &getTxInterval);
 	rssiData = new NodeSystemDataClass(RSSIDEVICEID, NULL, &getSignalStrength);
 	versionData = new NodeSystemDataClass(VERSIONDEVICEID, NULL, NULL);
 	voltageData = new NodeSystemDataClass(VOLTAGEDEVICEID, NULL, &getVoltage);
 	ackData = new NodeSystemDataClass(ACKDEVICEID, NULL, &getAck);
+#ifdef BUTTONENABLED
 	toggleData = new NodeSystemDataClass(TOGGLEDEVICEID, NULL, &getToggleState);
 	timerData = new NodeSystemDataClass(TIMERDEVICEID, NULL, &getTimerInterval);
-
-	// instantiate binary output devices - no callback necessary
-	actuatorData = new DigitalOutputDataClass(ACTUATORDEVICEID, ACT1);
-
-	// instantiate binary input devices - no callback necessary
-	int buttonDelay = 2 * 1000;
-	buttonData = new DigitalInputDataClass(BTNDEVICEID, BTN, buttonDelay);
-
-	// instantiate real data sensors - callbacks are required
-	dht.begin();
-	bool useFarenheit = true;
-	bool forceReading = false;
-	dhtTempSensorData = new RealInputDataClass(DHTTEMPDEVICEID, DHTPIN, &getDhtTemperatureFarenheit);
-	dhtHumSensorData = new RealInputDataClass(DHTHUMIDITYDEVICEID, DHTPIN, &getDhtHumidity);
-
-	// +/- this amount for each sensor triggers a transmission of data
-	int lightDeltaThreshold = 50;
-	int flameDeltaThreshold = 20;
-	int gasDeltaThreshold = 70;
-
-	// instantiate analog sensors - no callback required
-	lightSensorData = new AnalogSensorDataClass(2 * 1000, lightDeltaThreshold, LIGHTPIN, LIGHTSENSORDEVICEID);
-	flameSensorData = new AnalogSensorDataClass(2 * 1000, flameDeltaThreshold, FLAMEPIN, FLAMESENSORDEVICEID);
-	gasSensorData = new AnalogSensorDataClass(5 * 1000, gasDeltaThreshold, GASPIN, GASSENSORDEVICEID);
-
-	// instantiate error "devices" - no callback required
+#endif //BUTTONENABLED
+	// instantiate error devices
 	connectionError = new ErrorDataClass(WIRELESSCONNECTIONERROR, NULL);
 	unknownDevice = new ErrorDataClass(UNSUPPORTEDDEVICE, NULL);
 
-	// instantiate our one wakeup device - no callback required
+	// instantiate our one wakeup device - DO NOT MODIFY
 	wakeUp = new WakeupSignalClass(WAKEUPNODE, NULL);
 	wakeUp->setShouldSend(true); //always send wakeup on first loop
+
+	// instantiate binary output devices - DO NOT MODIFY
+#ifdef ACTUATORENABLED
+	actuatorData = new DigitalOutputDataClass(ACTUATORDEVICEID, ACT1);
+#endif //ACTUATORENABLED
+
+	// instantiate binary input devices - DO NOT MODIFY
+#ifdef BUTTONENABLED
+	int buttonDelay = 2 * 1000;
+	buttonData = new DigitalInputDataClass(BTNDEVICEID, BTN, buttonDelay);
+#endif //BUTTONENABLED
+
+#ifdef REEDSWITCHENABLED
+	reedSwitchData = new DigitalInputDataClass(REEDSWITCHDEVICEID, REEDSWITCHPIN, 1000);
+#endif //REEDSWITCHENABLED
+
+	// instantiate real data sensors - callbacks are required
+#ifdef DHTSENSORENABLED	
+	dht.begin();
+	bool useFarenheit = true;
+	bool forceReading = false;
+	long overrideTxInterval = 30 * 1000;
+	dhtTempSensorData = new RealInputDataClass(DHTTEMPDEVICEID, DHTPIN, overrideTxInterval, &getDhtTemperatureFarenheit);
+	dhtHumSensorData = new RealInputDataClass(DHTHUMIDITYDEVICEID, DHTPIN, overrideTxInterval, &getDhtHumidity);
+#endif //DHTSENSORENABLED
+
+	// instantiate analog sensors - no callback required
+#ifdef PHOTOSENSORENABLED
+	int lightDeltaThreshold = 50;
+	lightSensorData = new AnalogSensorDataClass(2 * 1000, lightDeltaThreshold, LIGHTPIN, LIGHTSENSORDEVICEID);
+#endif //PHOTOSENSORENABLED
+
+#ifdef FLAMESENSORENABLED
+	int flameDeltaThreshold = 20;
+	flameSensorData = new AnalogSensorDataClass(2 * 1000, flameDeltaThreshold, FLAMEPIN, FLAMESENSORDEVICEID);
+#endif //FLAMESENSORENABLED
+	
+#ifdef GASSENSORENABLED
+	int gasDeltaThreshold = 70;
+	gasSensorData = new AnalogSensorDataClass(5 * 1000, gasDeltaThreshold, GASPIN, GASSENSORDEVICEID);
+#endif //GASSENSORENABLED
 
 #ifdef DEBUG
 	Serial.begin(SERIAL_BAUD);
@@ -306,6 +349,8 @@ void setup() {
 	radio.encrypt(ENCRYPTKEY);				// set radio encryption	`
 	radio.promiscuous(promiscuousMode);			// only listen to closed network
 
+	//radio.enableAutoPower(-90);
+
 #ifdef DEBUG
 	Serial.print("Node Software Version ");
 	Serial.println(VERSION);
@@ -315,104 +360,66 @@ void setup() {
 #endif
 }	// end setup
 
-	//
-	//
-	//====================		MAIN	========================================
-	//
+//
+//
+//====================		MAIN	========================================
+//
 void loop() {
 	// RECEIVE radio input
 	//
+#ifdef LOWPOWERNODE
+	radio.sleep();
+	delay(500);
+#else
 	if (receiveData())
 	{
 		parseCmd();				// receive and parse any radio input
 	}
-	// DETECT INPUT CHANGE
-	//
-	if (buttonData->getShouldSend()) 
-	{			
-		buttonData->setShouldSend(true);							// set button message flag
-		if (buttonData->getState() == LOW) {
-			if (toggleOnButton) {									// button in toggle state ?
-				actuatorData->setState(!actuatorData->getState());
-			}
-			else if (timeInterval > 0 && !timerOnButton) {			// button in timer state ?
-				timerOnButton = true;								// start timer interval
-				actuatorData->setState(HIGH);
-			}
-		}
-	}
+#endif
 
-	// TIMER CHECK
-	//
-
-	if (timeInterval > 0 && timerOnButton)			// =0 means no timer
+	// find buttons and handle their timers appropriately
+	for (int componentNum = 0; componentNum < connectedComponentsCount; componentNum++)
 	{
-		if (millis() - buttonData->getLastInputTime() > timeInterval * 1000) {	// timer expired ?
-			timerOnButton = false;				// then end timer interval 
-			actuatorData->setState(LOW);
+		ComponentDataClass *thisDevice = connectedComponents[componentNum];
+		if (ISDIGITALINPUTSENSOR(componentNum))
+		{
+				DigitalInputDataClass *thisDigitalInput = (DigitalInputDataClass *)thisDevice;
+				thisDigitalInput->handleInput();
+				thisDigitalInput->handleTimer();
 		}
-	}
-
-	// UPTIME 
-	//
-
-	// PERIODIC TRANSMISSION
-	//
-	/*
-	if (TXinterval > 0) {
-		int currPeriod = millis() / (TXinterval * 1000);
-		if (currPeriod != lastPeriod) {				// interval elapsed ?
-			lastPeriod = currPeriod;
-
-			// list of sensordata to be sent periodically..
-			// remove comment to include parameter in transmission
-
-			//send1 = true;					// send transmission interval
-			//send2 = true; 					// signal strength
-			//send4 = true;					// voltage level
-			//send16 = true;					// actuator state
-			send48 = true;					// send temperature
-			send49 = true;					// send humidity
-		}
-	}
-	*/
-
-	// POLL ANALOG SENSORS AND DETERMINE IF SHOULD SEND
-	//
-	for (int connectedComponentNumber = 0; connectedComponentNumber < connectedComponentsCount; connectedComponentNumber++)
-	{
-		connectedComponents[connectedComponentNumber]->setShouldSend(connectedComponents[connectedComponentNumber]->getShouldSend());
 	}
 
 	// SEND RADIO PACKETS
-	//
-
-	sendMsg();						// send any radio messages 
-
+	sendMsg();
 }		// end loop
 
-		//
-		//
-		//=====================		FUNCTIONS	==========================================
+//
+//
+//=====================		FUNCTIONS	==========================================
 
-		//
-		//========		RECEIVEDATA : receive data from gateway over radio
-		//
+//
+//========		RECEIVEDATA : receive data from gateway over radio
+//
 
-bool receiveData() {
+bool receiveData() 
+{
 	bool validPacket = false;
-	if (radio.receiveDone()) {			// check for received packets
-		if (radio.DATALEN != sizeof(mes))			// wrong message size means trouble
-#ifdef DEBUG
-			Serial.println("invalid message structure..")
-#endif
-			;
-		else
+	if (radio.receiveDone()) // check for received packets
+	{			
+		validPacket = radio.DATALEN == sizeof(mes);
+		if (validPacket)
 		{
 			mes = *(Message*)radio.DATA;
 			validPacket = true;				// YES, we have a packet !
-			//signalStrength = radio.RSSI;
+		}
+
 #ifdef DEBUG
+		if (!validPacket)
+		{
+			Serial.println("invalid message structure..");
+		}
+		else
+		{
 			Serial.print(mes.devID);
 			Serial.print(", ");
 			Serial.print(mes.cmd);
@@ -424,115 +431,124 @@ bool receiveData() {
 			Serial.println(radio.RSSI);
 			Serial.print("Node: ");
 			Serial.println(mes.nodeID);
-#endif	
 		}
+#endif
 	}
-	if (radio.ACKRequested()) radio.sendACK();		// respond to any ACK request
+
+	if (radio.ACKRequested())
+	{
+		radio.sendACK();		// respond to any ACK request
+	}
+
 	return validPacket;					// return code indicates packet received
 }		// end recieveData
 
-		//
-		//
-		//==============		PARSECMD: analyse messages and execute commands received from gateway
-		//
+//
+//
+//==============		PARSECMD: analyse messages and execute commands received from gateway
+//
 
 void parseCmd() {					// parse messages received from the gateway
+	bool deviceFound = false;
 	for (int connectedComponentNumber = 0; connectedComponentNumber < connectedComponentsCount; connectedComponentNumber++)
 	{
 		ComponentDataClass *thisDevice = connectedComponents[connectedComponentNumber];
 		thisDevice->setShouldSend(false);
 		if (mes.devID == thisDevice->deviceId)
 		{
+			Serial.println(mes.devID);
+			deviceFound = true;
+
+			if (mes.cmd == READ)
+			{
+				thisDevice->setShouldSend(true);
+			}
+
 			if (ISNODESYSTEMDEVICE(mes.devID))
 			{
 				if (mes.devID == TXINTERVALDEVICEID)
 				{
-					if (mes.cmd == 0) {					// cmd == 0 means write a value
-						
-						txInterval = mes.intVal;			// change interval to radio packet value
-						if (txInterval <10 && txInterval != 0) txInterval = 10;	// minimum interval is 10 seconds
-						if (setAck) thisDevice->setShouldSend(true);			// send message if required
+					if (mes.cmd == WRITE) // cmd == 0 means write a value
+					{	
+						thisDevice->setShouldSend(setAck);
+						// change interval to radio packet value - min value is 10
+						for (int deviceNum = 0; deviceNum < connectedComponentsCount; deviceNum++)
+						{
+							mes.intVal < 10 ? connectedComponents[deviceNum]->txInterval = 10
+								: connectedComponents[deviceNum]->txInterval = mes.intVal;
+						}
+
 #ifdef DEBUG
 						Serial.print("Setting interval to ");
-						Serial.print(txInterval);
+						Serial.print(mes.intVal);
 						Serial.println(" seconds");
 #endif
 					}
-					else
+				}
+				else if (mes.devID == ACKDEVICEID)
+				{
+					if (mes.cmd == WRITE) 
 					{
-						thisDevice->setShouldSend(true);					// cmd == 1 is a read request, so send polling interval 
+						// intVal will indicate whether or not to acknowledge
+						// for safety, ensure it's 1 or 0
+						setAck = !(!(mes.intVal));
+						thisDevice->setShouldSend(setAck);			// acknowledge message ?
 					}
 				}
-				else if (mes.devID == ACKDEVICEID || mes.devID == TOGGLEDEVICEID)
+#ifdef BUTTONENABLED
+				else if (mes.devID == TOGGLEDEVICEID)
 				{
-					if (mes.cmd == 0) {
-						if (mes.intVal == 0) setAck = false;
-						if (mes.intVal == 1) setAck = true;
-						if (setAck) thisDevice->setShouldSend(true);			// acknowledge message ?
-					}
-					else
+					if (mes.cmd == WRITE) 
 					{
-						thisDevice->setShouldSend(true);				// read request means schedule a message
+						toggleOnButton = !(!(mes.intVal));
+						if (setAck)
+						{
+							thisDevice->setShouldSend(true);			// acknowledge message ?
+						}
 					}
 				}
 				else if (mes.devID == TIMERDEVICEID)
 				{
-					if (mes.cmd == 0) {					// cmd == 0 means write a value
+					if (mes.cmd == WRITE) 
+					{
 						timeInterval = mes.intVal;			// change interval 
-						if (timeInterval <5 && timeInterval != 0) timeInterval = 5;
-						if (setAck) thisDevice->setShouldSend(true);			// acknowledge message ?
+						if (timeInterval < 5 && timeInterval != 0)
+						{
+							timeInterval = 5;
+						}
+						thisDevice->setShouldSend(setAck);			// acknowledge message ?
 					}							// cmd == 1 means read a value
-					else
-					{
-						thisDevice->setShouldSend(true);				// send timing interval 
-					}
 				}
-				else
-				{
-					if (mes.cmd == 1)
-					{
-						thisDevice->setShouldSend(true);
-					}
-				}
+#endif //BUTTONENABLED
 			}
+#ifdef ACTUATORENABLED
 			else if (ISDIGITALOUTPUTDEVICE(mes.devID))
 			{
 				if (mes.devID == ACTUATORDEVICEID)
 				{
-					if (mes.cmd == 0) {					// cmd == 0 means write
-						if (mes.intVal == 0 || mes.intVal == 1) {
+					if (mes.cmd == 0) // cmd == 0 means write 
+					{					
+						if (mes.intVal == 0 || mes.intVal == 1) 
+						{
 							actuatorData->setState(mes.intVal);
-							if (setAck) actuatorData->setShouldSend(true);			// acknowledge message ?
-#ifdef DEBUG	
-							Serial.print("Set LED to ");
-							Serial.println(actuatorData->getState());
-#endif
+							actuatorData->setShouldSend(setAck);			// acknowledge message ?
 						}
 					}
-					else actuatorData->setShouldSend(true);					// cmd == 1 means read
 				}
 			}
-			else if (
-				ISANALOGOUTPUTDEVICE(mes.devID) || 
-				ISDIGITALINPUTSENSOR(mes.devID) || 
-				ISREALINPUTSENSOR(mes.devID) ||
-				ISANALOGSENSOR(mes.devID)
-				)
-			{
-				if (mes.cmd == 1) thisDevice->setShouldSend(true);
-			}
-			else
-			{
-				unknownDevice->setShouldSend(true); // error - device wasn't recognized
-			}
+#endif //ACTUATORENABELD
 		}
+	}
+	if (!deviceFound)
+	{
+		unknownDevice->setShouldSend(true);
 	}
 }	// end parseCmd
 
-	//
-	//
-	//======================		SENDMSG: sends messages that are flagged for transmission
-	//
+//
+//
+//======================		SENDMSG: sends messages that are flagged for transmission
+//
 
 void sendMsg() {					// prepares values to be transmitted
 	//bool tx = false; 					// transmission flag
@@ -546,153 +562,110 @@ void sendMsg() {					// prepares values to be transmitted
 	}
 	mes.payLoad[i] = '\0';					// software version in payload string
 
-	for (int componentNumber = 0; componentNumber < connectedComponentsCount; componentNumber++)
+	if (wakeUp->getShouldSend())
 	{
-		ComponentDataClass *thisDevice = connectedComponents[componentNumber];
-		if (thisDevice->getShouldSend())
+		mes.devID = wakeUp->deviceId;
+		txRadio();
+		wakeUp->setShouldSend(false);
+	}
+
+	for (int componentNumber = 0; componentNumber < connectedComponentsCount; componentNumber++)
+	{	
+		if (ISNODESYSTEMDEVICE(connectedComponents[componentNumber]->deviceId))
 		{
-			mes.devID = thisDevice->deviceId;
-			if (ISNODESYSTEMDEVICE(thisDevice->deviceId))
+			NodeSystemDataClass *nodeDevice = (NodeSystemDataClass *)connectedComponents[componentNumber];
+			if (nodeDevice->getShouldSend())
 			{
-				NodeSystemDataClass *nodeDevice = (NodeSystemDataClass *)thisDevice;
+				mes.devID = nodeDevice->deviceId;
 				mes.intVal = nodeDevice->getValueToSend();
+				txRadio();
+				nodeDevice->setShouldSend(false);
 			}
-			
-			if (ISDIGITALOUTPUTDEVICE(thisDevice->deviceId))
+		}
+
+		if (ISDIGITALOUTPUTDEVICE(connectedComponents[componentNumber]->deviceId))
+		{
+			DigitalOutputDataClass *digitalOutputDevice = (DigitalOutputDataClass *)connectedComponents[componentNumber];
+			if (digitalOutputDevice->getShouldSend())
 			{
-				DigitalOutputDataClass *digitalOutputDevice = (DigitalOutputDataClass *)thisDevice;
+				mes.devID = digitalOutputDevice->deviceId;
 				mes.intVal = digitalOutputDevice->getValueToSend();
-			}
+				txRadio();
+				digitalOutputDevice->setShouldSend(false);
+			}		
+		}
 
-			if (ISANALOGOUTPUTDEVICE(thisDevice->deviceId))
+		if (ISANALOGOUTPUTDEVICE(connectedComponents[componentNumber]->deviceId))
+		{
+			AnalogOutputDataClass *analogOutputDevice = (AnalogOutputDataClass *)connectedComponents[componentNumber];
+			if (analogOutputDevice->getShouldSend())
 			{
-				AnalogOutputDataClass *analogOutputDevice = (AnalogOutputDataClass *)thisDevice;
+				mes.devID = analogOutputDevice->deviceId;
 				mes.intVal = analogOutputDevice->getValueToSend();
-			}
+				txRadio();
+				analogOutputDevice->setShouldSend(false);
+			}		
+		}
 
-			if (ISDIGITALINPUTSENSOR(thisDevice->deviceId))
+		if (ISDIGITALINPUTSENSOR(connectedComponents[componentNumber]->deviceId))
+		{
+			DigitalInputDataClass *digitalInputDevice = (DigitalInputDataClass *)connectedComponents[componentNumber];
+			if (digitalInputDevice->getShouldSend())
 			{
-				DigitalInputDataClass *digitalInputDevice = (DigitalInputDataClass *)thisDevice;
+				mes.devID = digitalInputDevice->deviceId;
 				mes.intVal = digitalInputDevice->getValueToSend();
+				txRadio();
+				digitalInputDevice->setShouldSend(false);
 			}
+		}
 
-			if (ISREALINPUTSENSOR(thisDevice->deviceId))
+		if (ISREALINPUTSENSOR(connectedComponents[componentNumber]->deviceId))
+		{
+			RealInputDataClass *realInputDevice = (RealInputDataClass *)connectedComponents[componentNumber];
+			if (realInputDevice->getShouldSend())
 			{
-				RealInputDataClass *realInputDevice = (RealInputDataClass *)thisDevice;
+				mes.devID = realInputDevice->deviceId;
 				mes.fltVal = realInputDevice->getValueToSend();
+				txRadio();
+				realInputDevice->setShouldSend(false);
 			}
+		}
 
-			if (ISANALOGSENSOR(thisDevice->deviceId))
+		if (ISANALOGSENSOR(connectedComponents[componentNumber]->deviceId))
+		{
+			AnalogSensorDataClass *analogSensorDevice = (AnalogSensorDataClass *)connectedComponents[componentNumber];
+			if (analogSensorDevice->getShouldSend())
 			{
-				AnalogSensorDataClass *analogSensorDevice = (AnalogSensorDataClass *)thisDevice;
+				mes.devID = analogSensorDevice->deviceId;
 				mes.intVal = analogSensorDevice->getValueToSend();
+				txRadio();
+				analogSensorDevice->setShouldSend(false);
 			}
+		}
 
-			if (ISERRORCODE(thisDevice->deviceId))
+		if (ISERRORCODE(connectedComponents[componentNumber]->deviceId))
+		{
+			if (connectedComponents[componentNumber]->getShouldSend())
 			{
-				mes.intVal = thisDevice->deviceId;
+				mes.intVal = mes.devID;
+				mes.devID = connectedComponents[componentNumber]->deviceId;
+				txRadio();
+				connectedComponents[componentNumber]->setShouldSend(false);
 			}
+		}
 
-			txRadio();
+		if (ISWAKEUPCODE(connectedComponents[componentNumber]->deviceId))
+		{
+			if (connectedComponents[componentNumber]->getShouldSend())
+			{
+				mes.devID = connectedComponents[componentNumber]->deviceId;
+				txRadio();
+				connectedComponents[componentNumber]->setShouldSend(false);
+			}
 		}
 	}
-	/*
-	if (wakeUp) {						// send wakeUp call 
-		mes.devID = 99;
-		wakeUp = false;					// reset transmission flag for this message
-		txRadio();					// transmit
-	}
-	if (send0) {
-		mes.devID = 0;
-		mes.intVal = upTime;				// minutes uptime
-		send0 = false;
-		txRadio();
-	}
-	if (send1) {						// transmission interval
-		mes.devID = 1;
-		mes.intVal = TXinterval;			// seconds (integer)
-		send1 = false;
-		txRadio();
-	}
-	if (send2) {
-		mes.devID = 2;
-		mes.intVal = signalStrength;			// signal strength (integer)
-		send2 = false;
-		txRadio();
-	}
-	if (send3) {						// node software version (string)
-		mes.devID = 3;					// already stored in payload string
-		send3 = false;
-		txRadio();
-	}
-	if (send4) {						// measure voltage..
-		mes.devID = 4;
-
-		mes.fltVal = float(result / 1000.0);		// Voltage in Volt (float)
-		txRadio();
-		send4 = false;
-	}
-	if (send5) {						// Acknowledge on 'SET'
-		mes.devID = 5;
-		if (setAck) mes.intVal = 1; else mes.intVal = 0;// state (integer)
-		send5 = false;
-		txRadio();
-	}
-	if (send6) {						// Toggle on Buttonpress 
-		mes.devID = 6;
-		if (toggleOnButton) mes.intVal = 1; 		// read state of toggle flag
-		else mes.intVal = 0;				// state (integer)
-		send6 = false;
-		txRadio();
-	}
-	if (send7) {						// timer interval
-		mes.devID = 7;
-		mes.intVal = TIMinterval;			// seconds (integer)
-		send7 = false;
-		txRadio();
-	}
-	if (send16) {						// state of Actuator 1
-		mes.devID = 16;
-		mes.intVal = ACT1State;				// state (integer)
-		send16 = false;
-		txRadio();
-	}
-	if (send40) {						// Binary input read
-		mes.devID = 40;
-		if (curState == LOW) mes.intVal = 1;					// state (integer)
-		send40 = false;
-		txRadio();
-	}
-	if (send48) {						// Temperature
-		mes.devID = 48;
-		temp = dht.readTemperature(true);
-		mes.fltVal = temp;				// Degrees F (float)
-		send48 = false;
-		txRadio();
-	}
-	if (send49) {						// Humidity
-		mes.devID = 49;
-		hum = dht.readHumidity();
-		mes.fltVal = hum;				// Percentage (float)
-		send49 = false;
-		txRadio();
-	}
-	if (send64) {
-		mes.devID = 64;
-		lightLevel = analogRead(lightLevel);
-		mes.intVal = lightLevel;
-		send64 = false;
-		txRadio();
-	}
-	if (send92) {						// error message invalid device
-		mes.intVal = mes.devID;
-		mes.devID = 92;
-		send92 = false;
-		txRadio();
-	}
-	*/
-
 }
+
 //
 //
 //=======================		TXRADIO
@@ -700,7 +673,7 @@ void sendMsg() {					// prepares values to be transmitted
 
 void txRadio()						// Transmits the 'mes'-struct to the gateway
 {
-	if (radio.sendWithRetry(GATEWAYID, (const void*)(&mes), sizeof(mes)), 3, ACK_TIME)
+	if (radio.sendWithRetry(GATEWAYID, (const void*)(&mes), sizeof(mes), 3, ACK_TIME))
 #ifdef DEBUG
 	{
 		Serial.print(" message ");
@@ -710,25 +683,29 @@ void txRadio()						// Transmits the 'mes'-struct to the gateway
 	else
 	{
 		Serial.println("No connection...");
-		Serial.println("tried to send");
-		Serial.print(mes.devID);
-		Serial.print(" ");
-		Serial.println(mes.intVal);
 	}
 #endif
 }	// end txRadio
 
-// functions to use for callbacks to pass to the device classes
+//
+//
+//==============	functions to use for callbacks to pass to the device classes
+//
+// 
 
-// number of minutes node has been running
 int getUptime()
 {
-	return millis() / 600000;
+	return millis() / 60000;
 }
 
 int getTxInterval()
 {
-	return txInterval;
+	int returnValue = -1;
+	if (connectedComponentsCount > 0)
+	{
+		returnValue = connectedComponents[0]->txInterval;
+	}
+	return returnValue;
 }
 
 int getSignalStrength()
@@ -740,12 +717,12 @@ int getVoltage()
 {
 	long voltage;					// Read 1.1V reference against AVcc
 	ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
-	delay(2);					// Wait for Vref to settle
-	ADCSRA |= _BV(ADSC);				// Convert
+	delay(2);						// Wait for Vref to settle
+	ADCSRA |= _BV(ADSC);			// Convert
 	while (bit_is_set(ADCSRA, ADSC));
 	voltage = ADCL;
 	voltage |= ADCH << 8;
-	voltage = 1126400L / voltage; 			// Back-calculate in mV
+	voltage = 1126400L / voltage; 	// Back-calculate in mV
 	return (int)(voltage / 1000.0);
 }
 
@@ -754,6 +731,7 @@ int getAck()
 	return setAck;
 }
 
+#ifdef BUTTONENABLED
 int getToggleState()
 {
 	return toggleOnButton;
@@ -763,7 +741,9 @@ int getTimerInterval()
 {
 	return timeInterval;
 }
+#endif //BUTTONENABLED
 
+#ifdef DHTSENSORENABLED
 float getDhtTemperatureFarenheit()
 {
 	return dht.readTemperature(true);
@@ -773,3 +753,4 @@ float getDhtHumidity()
 {
 	return dht.readHumidity();
 }
+#endif //DHTSENSORENABLED

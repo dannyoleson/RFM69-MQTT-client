@@ -3,8 +3,6 @@
 #ifndef _COMPONENTDATA_h
 #define _COMPONENTDATA_h
 
-#include <DHT.h>
-
 #if defined(ARDUINO) && ARDUINO >= 100
 	#include "arduino.h"
 #else
@@ -14,20 +12,22 @@
 class ComponentDataClass
 {
  protected:
-	 bool shouldSend;
-	 int txInterval;
+	 // this is a flag that can be set externally.  It should be checked in getShouldSend() functions where complex code is determining whether data need to be sent.
+	 bool m_shouldSend;
+	 uint8_t m_dataPin;
+	 int m_valueToSend;
 
 	 // callback types
 	 typedef int(*int_call_back)(void);
 	 typedef float(*flt_call_back)(void);
 
  public:
+	long txInterval;
 	int deviceId;
-	uint8_t dataPin;
-	int valueToSend;
 
 	ComponentDataClass(int id, uint8_t pin);
-	bool getShouldSend();
+	ComponentDataClass(int id, uint8_t pin, long overrideTxInterval);
+	virtual bool getShouldSend();
 	void setShouldSend(bool shouldSendData);
 };
 
