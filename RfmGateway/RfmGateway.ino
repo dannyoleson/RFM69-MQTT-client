@@ -1,58 +1,59 @@
-// RFM69 MQTT gateway sketch
-//
-// This gateway relays messages between a MQTT-broker and several wireless nodes and will:
-// - receive sensor data from several nodes periodically and on-demand
-// - send/receive commands from the broker to control actuators and node parameters
-//
-//	Connection to the MQTT broker is over a fixed ethernet connection:
-//
-//		The MQTT topic is /home/rfm_gw/direction/nodeid/devid
-//		where direction is: southbound (sb) towards the remote node and northbound (nb) towards MQTT broker
-//
-//	Connection to the nodes is over a closed radio network:
-//
-//		RFM Message format is: nodeID/deviceID/command/integer/float/string
-//		where Command = 1 for a read request and 0 for a write request
-//
-//	Current defined gateway devices are:
-//	0	uptime:			gateway uptime in minutes 
-//	3	Version:		read version gateway software
-//	
-//	Reserved ranges for node devices, as implemented in the gateway are:
-//	0  - 16				Node system devices
-//	16 - 32				Binary output (LED, relay)
-//	32 - 40				Integer output (pwm, dimmer)
-//	40 - 48				Binary input (button, switch, PIR-sensor)
-//	48 - 64				Real input (temperature, humidity)
-//	64 - 72				Integer input (light intensity)
-//
-//	72	string:			transparant string transport
-//
-//	73 - 90		Special devices not implemented in gateway (yet)
-//
-//	Currently defined error messages are:
-//	90	error:			Tx only: error message if no wireless connection
-//	91	error:			Tx only: syntax error
-//	92	error:			Tx only: invalid device type
-//	99	wakeup:			Tx only: sends a message on node startup
-//
-//	==> Note: 
-//		- Interrupts are disabled during ethernet transactions in w5100.h (ethernet library)
-//		  (See http://harizanov.com/2012/04/rfm12b-and-arduino-ethernet-with-wiznet5100-chip/)
-//		- Ethernet card and RFM68 board default use the same Slave Select pin (10) on the SPI bus;
-//		  To avoid conflict the RFM module is controlled by another SS pin (8).
-//
-//
-// RFM69 Library by Felix Rusu - felix@lowpowerlab.com
-// Get the RFM69 library at: https://github.com/LowPowerLab/s
-//
-// version 1.8 - by Computourist@gmail.com december 2014
-// version 1.9 - fixed resubscription after network outage  Jan 2015
-// version 2.0 - increased payload size; standard device types; trim float values; uptime & version function gateway;	Jan 2015
-// version 2.1 - implemented string device 72; devices 40-48 handled uniformly		Feb 2015
-// version 2.2 - changed handling of binary inputs to accomodate Openhab: message for ON and OFF on statechange; 
-//			   - RSSI value changed to reception strength in the gateway giving a more accurate and uptodate value ; March 2015
-//	
+	// RFM69 MQTT gateway sketch
+	//
+	// This gateway relays messages between a MQTT-broker and several wireless nodes and will:
+	// - receive sensor data from several nodes periodically and on-demand
+	// - send/receive commands from the broker to control actuators and node parameters
+	//
+	//	Connection to the MQTT broker is over a fixed ethernet connection:
+	//
+	//		The MQTT topic is /home/rfm_gw/direction/nodeid/devid
+	//		where direction is: southbound (sb) towards the remote node and northbound (nb) towards MQTT broker
+	//
+	//	Connection to the nodes is over a closed radio network:
+	//
+	//		RFM Message format is: nodeID/deviceID/command/integer/float/string
+	//		where Command = 1 for a read request and 0 for a write request
+	//
+	//	Current defined gateway devices are:
+	//	0	uptime:			gateway uptime in minutes 
+	//	3	Version:		read version gateway software
+	//	
+	//	Reserved ranges for node devices, as implemented in the gateway are:
+	//	0  - 15				Node system devices
+	//	16 - 31				Binary output (LED, relay)
+	//	32 - 39				Integer output (pwm, dimmer)
+	//	40 - 47				Binary input (button, switch, PIR-sensor)
+	//	48 - 63				Real input (temperature, humidity)
+	//	64 - 71				Integer input (light intensity)
+	//
+	//	72	string:			transparant string transport
+	//
+	//	73 - 90		Special devices not implemented in gateway (yet)
+	//
+	//	Currently defined error messages are:
+	//	90	error:			Tx only: error message if no wireless connection
+	//	91	error:			Tx only: syntax error
+	//	92	error:			Tx only: invalid device type
+	//	99	wakeup:			Tx only: sends a message on node startup
+	//
+	//	==> Note: 
+	//		- Interrupts are disabled during ethernet transactions in w5100.h (ethernet library)
+	//		  (See http://harizanov.com/2012/04/rfm12b-and-arduino-ethernet-with-wiznet5100-chip/)
+	//		- Ethernet card and RFM68 board default use the same Slave Select pin (10) on the SPI bus;
+	//		  To avoid conflict the RFM module is controlled by another SS pin (8).
+	//
+	//
+	// RFM69 Library by Felix Rusu - felix@lowpowerlab.com
+	// Get the RFM69 library at: https://github.com/LowPowerLab/s
+	//
+	// version 1.8 - by Computourist@gmail.com december 2014
+	// version 1.9 - fixed resubscription after network outage  Jan 2015
+	// version 2.0 - increased payload size; standard device types; trim float values; uptime & version function gateway;	Jan 2015
+	// version 2.1 - implemented string device 72; devices 40-48 handled uniformly		Feb 2015
+	// version 2.2 - changed handling of binary inputs to accomodate Openhab: message for ON and OFF on statechange; 
+	//	       - RSSI value changed to reception strength in the gateway giving a more accurate and uptodate value ; March 2015
+	// version 2.3 - System device 9 (number of retransmissions) implemented in gateway	; 
+	//	       - Deleted debug option 's' to toggle push interval due to memory constraints;  Oct 2015
 
 
 #include <RFM69.h>
@@ -60,13 +61,13 @@
 #include <Ethernet.h>
 #include <PubSubClient.h>
 
-#define DEBUG					// uncomment for debugging
-#define VERSION "GW V2.2"
+#define DEBUG						// uncomment for debugging
+#define VERSION "GW V2.3"
 
-// Ethernet settings
+	// Ethernet settings
 byte mac[] = { 0x90, 0xA2, 0xDA, 0x0D, 0x11, 0x11 };	// MAC address for ethernet
 byte mqtt_server[] = { 192, 168, 1, 200 };		// MQTT broker address
-byte ip[] = { 192, 168, 1 , 61 };			// Gateway address (if DHCP fails)
+byte ip[] = { 192, 168, 1 , 60 };			// Gateway address (if DHCP fails)
 
 
 											// Wireless settings
@@ -75,8 +76,8 @@ byte ip[] = { 192, 168, 1 , 61 };			// Gateway address (if DHCP fails)
 #define NETWORKID 100				// closed radio network ID
 
 											//Match frequency to the hardware version of the radio (uncomment one):
+											//#define FREQUENCY RF69_433MHZ
 #define FREQUENCY RF69_433MHZ
-											//#define FREQUENCY RF69_868MHZ
 											//#define FREQUENCY RF69_915MHZ
 
 #define ENCRYPTKEY "xxxxxxxxxxxxxxxx" 		// shared 16-char encryption key is equal on Gateway and nodes
@@ -90,7 +91,7 @@ byte ip[] = { 192, 168, 1 , 61 };			// Gateway address (if DHCP fails)
 
 typedef struct {				// Radio packet structure max 66 bytes
 	int		nodeID;				// node identifier
-	int		devID;				// device identifier 0 is node; 31 is erature, 32 is humidity
+	int		devID;				// device identifier 0 is node; 31 is temperature, 32 is humidity
 	int		cmd;				// read or write
 	long		intVal;				// integer payload
 	float		fltVal;				// floating payload
@@ -102,11 +103,9 @@ Message mes;
 #ifdef DEBUG
 bool	act1Stat = false;			// remember LED state in debug mode
 bool	msgToSend = false;			// message request by debug action
-int	curstat = 0;				// current polling interval in debug mode
-int	stat[] = { 0,1,6,20 };			// status 0 means no polling, 1, 6, 20 seconds interval
 #endif							
 
-int	dest;				// destination node for radio packet
+int	dest;					// destination node for radio packet
 int     DID;                    		// Device ID
 int 	error;					// Syntax error code
 long	lastMinute = -1;			// timestamp last minute
@@ -324,10 +323,10 @@ void processPacket() {
 	}
 	DID = mes.devID;						// construct MQTT message, according to device ID
 
-	IntMess = (DID == 0 || DID == 1 || DID == 7 || (DID >= 64 && DID<72));	// Integer in payload message
+	IntMess = (DID == 0 || DID == 1 || DID == 7 || DID == 9 || (DID >= 64 && DID<72));	// Integer in payload message
 	RealMess = (DID == 4 || (DID >= 48 && DID <64));					// Float in payload message
-	StatMess = (DID == 5 || DID == 6 || DID == 8 || (DID >= 16 && DID <32) || (DID >= 40 && DID <48));		// Status in payload message
-	StrMess = (DID == 3 || DID == 72);			// String in payload
+	StatMess = (DID == 5 || DID == 6 || DID == 8 || (DID >= 16 && DID <32) || (DID >= 40 && DID <48));// Status in payload message
+	StrMess = (DID == 3 || DID == 72);					// String in payload
 
 	if (IntMess) {							// send integer value	load
 		sprintf(buff_mess, "%d", mes.intVal);
@@ -398,7 +397,7 @@ void mqtt_subs(char* topic, byte* payload, unsigned int length) {
 	mes.fltVal = 0;
 	mes.intVal = 0;
 	mqttToSend = false;				// not a valid request yet...
-	error = 4;						// assume invalid device until proven otherwise
+	error = 4;					// assume invalid device until proven otherwise
 
 #ifdef DEBUG
 	Serial.print("Topic received from Mosquitto:   ");
@@ -417,7 +416,7 @@ void mqtt_subs(char* topic, byte* payload, unsigned int length) {
 		else {
 			StatMess = (DID == 5 || DID == 6 || DID == 8 || (DID >= 16 && DID<32));
 			RealMess = ((DID == 0 || DID == 2 || DID == 3 || DID == 4 || (DID >= 40 && DID<72)) && mes.cmd == 1);
-			IntMess = (DID == 1 || DID == 7 || (DID >= 32 && DID <40));
+			IntMess = (DID == 1 || DID == 7 || DID == 9 || (DID >= 32 && DID <40));
 			StrMess = (DID == 72);
 
 			if (dest == 1 && DID == 0) {					// gateway uptime wanted
@@ -443,7 +442,7 @@ void mqtt_subs(char* topic, byte* payload, unsigned int length) {
 			}
 			if (dest>1 && (DID >= 40 && DID <48)) {
 				if (strPayload == "READ") mqttToSend = true;
-				else { mqttToSend = false; error = 3; }		// invalid payload; do not process
+				else { mqttToSend = false; error = 3; }			// invalid payload; do not process
 			}
 			if (dest>1 && RealMess) {					// node read device
 				mqttToSend = true;
@@ -463,7 +462,7 @@ void mqtt_subs(char* topic, byte* payload, unsigned int length) {
 			}
 
 			if (mqttToSend && (error == 4)) error = 0;		// valid device has been selected, hence error = 0
-			respNeeded = mqttToSend;			// valid request needs radio response
+			respNeeded = mqttToSend;				// valid request needs radio response
 #ifdef DEBUG
 			Serial.println(strPayload);
 			Serial.print("Value is:  ");
@@ -495,8 +494,6 @@ void mqtt_subs(char* topic, byte* payload, unsigned int length) {
   //
   //	some commands can be given thru the terminal to simulate actions
   // 'l' will toggle LED
-  // 's' will toggle tranmsission interval between 4 states
-  // 'v' will request voltage to be sent
   //
 
 #ifdef DEBUG
@@ -510,7 +507,7 @@ bool serialInput() {				// get and process manual input
 	mes.intVal = 0;
 	mes.fltVal = 0;
 	mes.cmd = 0;
-	if (input == 'l')						// toggle LED
+	if (input == 'l')				// toggle LED
 	{
 		msgAvail = true;
 		respNeeded = true;
@@ -521,18 +518,7 @@ bool serialInput() {				// get and process manual input
 		Serial.println(act1Stat);
 	}
 
-	if (input == 's')						// set polling interval
-	{
-		msgAvail = true;
-		respNeeded = true;
-		curstat++;
-		if (curstat == 4) curstat = 0;
-		mes.devID = 1;
-		mes.intVal = stat[curstat];
-		Serial.print("Current polling interval is ");
-		Serial.println(mes.intVal);
 
-	}
 	return msgAvail;
 }	// end serialInput
 #endif
