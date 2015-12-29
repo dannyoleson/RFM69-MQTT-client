@@ -10,12 +10,6 @@
 //
 // Hardware used is a 3.3 Volt 8MHz arduino Pro; this is easier to interface to RFM69 
 //
-// A DHT-11 is used for temperature & humidity measurements, other sensors and outputs can be added easily.
-//
-// Message format is: nodeID/deviceID/command/integer/float/string
-//
-// Depending on the type of data (integer, float or string) one of the payload variables is used
-// Command = 0 means write a value in the node, cmd = 1 means read a value 
 //
 // Current defined devices are:
 //
@@ -52,67 +46,15 @@
 //	version 1.7 by Computourist@gmail.com december 2014
 //	version 2.0 increased payload size; implemented node uptime; standard device type convention; error handling .
 //	version 2.1 removed device 8; changed handling of device 40; compatible with gateway V2.2	; march 2015
-//  version 2.2 lewishollow - dannyoleson@gmail.com - changed format to be object-oriented.  This should make adding devices much easier.
+//  version 2.1.1 lewishollow - dannyoleson@gmail.com - Changed to OO format.  Adding/removing known devices is simple.  
+//		Low power mode for batter nodes.
 
-#include "ButtonInputData.h"
-#include "NodeSystemData.h"
-#include "RealInputData.h"
-#include "DigitalOutputData.h"
-#include "DigitalInputData.h"
-#include "AnalogOutputData.h"
-#include "AnalogSensorData.h"
-#include "ComponentData.h"
+#include "RfmAioNodeLibrary.h"
 #include <RFM69.h>
 #include <RFM69_ATC.h>
 #include <SPI.h>
 #include <DHT.h>
-#include <LowPower.h>
-
-//
-// CONFIGURATION PARAMETERS
-//
-#define NODEID 3 					// unique node ID within the closed network
-#define GATEWAYID 1					// node ID of the Gateway is always 1
-#define NETWORKID 100					// network ID of the network
-#define ENCRYPTKEY "5029386215036408" 			// 16-char encryption key; same as on Gateway!
-#define DEBUG						// uncomment for debugging
-#define VERSION "NDE V2.2"				// this value can be queried as device 3
-#define LOWPOWERNODE				// uncomment for battery-powered node
-
-#define WRITE 0
-#define READ 1
-
-// device ID ranges
-#define NODESYSTEMDEVICERANGEBOTTOM 0
-#define NODESYSTEMDEVICERANGETOP 15
-#define ISNODESYSTEMDEVICE(x) x >= NODESYSTEMDEVICERANGEBOTTOM && x <= NODESYSTEMDEVICERANGETOP
-
-#define DIGITALOUTPUTRANGEBOTTOM 16
-#define DIGITALOUTPUTRANGETOP 31
-#define ISDIGITALOUTPUTDEVICE(x) x >= DIGITALOUTPUTRANGEBOTTOM && x <= DIGITALOUTPUTRANGETOP
-
-#define ANALOGOUTPUTRANGEBOTTOM 32
-#define ANALOGOUTPUTRANGETOP 39
-#define ISANALOGOUTPUTDEVICE(x) x >= ANALOGOUTPUTRANGEBOTTOM && x <= ANALOGOUTPUTRANGETOP
-
-#define DIGITALINPUTRANGEBOTTOM 40
-#define DIGITALINPUTRANGETOP 47
-#define ISDIGITALINPUTSENSOR(x) x >= DIGITALINPUTRANGEBOTTOM && x <= DIGITALINPUTRANGETOP
-
-#define REALINPUTRANGEBOTTOM 48
-#define REALINPUTRANGETOP 63
-#define ISREALINPUTSENSOR(x) x >= REALINPUTRANGEBOTTOM && x <= REALINPUTRANGETOP
-
-#define ANALOGSENSORRANGEBOTTOM 64
-#define ANALOGSENSORRANGETOP 71
-#define ISANALOGSENSOR(x) x >= ANALOGSENSORRANGEBOTTOM && x <= ANALOGSENSORRANGETOP
-
-#define ERRORCODEBOTTOM 90
-#define ERRORCODETOP 98
-#define ISERRORCODE(x) x >= ERRORCODEBOTTOM && x <= ERRORCODETOP
-
-// just one device - no need for top/bottom
-#define ISWAKEUPCODE(x) x == 99
+#include <LowPower.h> //https://github.com/rocketscream/Low-Power/archive/master.zip
 
 // Wireless settings	Match frequency to the hardware version of the radio
 #define FREQUENCY RF69_433MHZ
@@ -120,11 +62,19 @@
 //#define FREQUENCY RF69_915MHZ
 
 #define IS_RFM69HW 					// uncomment only for RFM69HW! 
-#define ACK_TIME 100					// max # of ms to wait for an ack
 
+//
+// CONFIGURATION PARAMETERS
+//
+#define NODEID 3 					// unique node ID within the closed network
+#define NETWORKID 100					// network ID of the network
+#define ENCRYPTKEY "5029386215036408" 			// 16-char encryption key; same as on Gateway!
+#define DEBUG						// uncomment for debugging
+#define LOWPOWERNODE				// uncomment for battery-powered node
 
-
-// enable or disable common devices here
+//
+// ENABLE OR DISABLE DEVICES HERE
+//
 //#define PHOTOSENSORENABLED
 #define REEDSWITCHENABLED
 //#define BUTTONENABLED
@@ -133,91 +83,11 @@
 //#define GASSENSORENABLED
 #define DHTSENSORENABLED
 
-// Binary input settings
-#ifdef BUTTONENABLED
-#define BTN 8						// Button pin
-#define BTNDEVICEID 40
-#endif //BUTTONENABLED
+// TO ADD DEVICES, DECLARE THEM BELOW ALONG WITH NECESSARY DATA AS INDICATED BY THE CLASS
+// USING A DEFINE FOR EACH DEVICE BEING ENABLED IS WHAT ALLOWS THIS CODE TO WORK ON A DEVICE
+// WITH ANY SET OF SENSORS
 
-#ifdef REEDSWITCHENABLED
-#define REEDSWITCHPIN 3
-#define REEDSWITCHDEVICEID 41
-#endif //REEDSWITCHENABLED
-
-// Binary output settings
-#ifdef ACTUATORENABLED
-#define ACT1 9						// Actuator pin (LED or relay)
-#define ACTUATORDEVICEID 16
-#endif //ACTUATORENABLED
-
-// Analog sensor settings
-#ifdef PHOTOSENSORENABLED
-#define LIGHTPIN A0
-#define LIGHTSENSORDEVICEID 64
-#endif //PHOTOSENSORENABLED
-
-#ifdef FLAMESENSORENABLED
-#define FLAMEPIN A1
-#define FLAMESENSORDEVICEID 65
-#endif //FLAMESENSORENABLED
-
-#ifdef GASSENSORENABLED
-#define GASPIN A2
-#define GASSENSORDEVICEID 66
-#endif //GASSENSORENABLED
-
-// DHT sensor setting
-#ifdef DHTSENSORENABLED
-#define DHTPIN 4					// DHT data connection
-#define DHTTEMPDEVICEID 48
-#define DHTHUMIDITYDEVICEID 49
-#define	DHTTYPE	DHT22					// type of sensor
-#endif //DHTSENSORENABLED
-
-
-// defining NODESYSTEMDEVICES - not devices as such, but we treat them like devices to keep the code simple
-// DO NOT EDIT THESE DEVICES
-#define UPTIMEDEVICEID 0
-#define TXINTERVALDEVICEID 1
-#define RSSIDEVICEID 2
-#define VERSIONDEVICEID 3
-#define VOLTAGEDEVICEID 4
-#define ACKDEVICEID 5
-#define WIRELESSCONNECTIONERROR 90
-#define UNSUPPORTEDDEVICE 92
-#define WAKEUPNODE 99
-
-#define SERIAL_BAUD 115200
-
-//
-//	VARIABLES
-//
-bool	setAck = false;					// send ACK message on 'SET' request
-bool	promiscuousMode = false; 			// only listen to nodes within the closed network
-
-typedef struct {					// Radio packet format
-	int		nodeID;						// node identifier
-	int		devID;						// device identifier 
-	int		cmd;						// read or write
-	long	intVal;						// integer payload
-	float	fltVal;						// floating payload
-	char	payLoad[32];					// string payload
-} Message;
-
-Message mes;
-
-RFM69_ATC radio;
-
-// adding components in setup() will add to this array and increment the count
-ComponentDataClass *connectedComponents[100];
-int connectedComponentsCount = 0;
-
-// these don't need new subclasses, but naming them differently keeps them easy to understand
-typedef ComponentDataClass ErrorDataClass;
-typedef ComponentDataClass WakeupSignalClass;
-
-// declare node system devices, error codes and wake up signal
-// DO NOT MODIFY
+// DO NOT MODIFY THIS SET OF SYSTEM DEVICES
 NodeSystemDataClass *uptimeData;
 NodeSystemDataClass *txIntervalData;
 NodeSystemDataClass *rssiData;
@@ -231,65 +101,93 @@ ErrorDataClass *connectionError;
 ErrorDataClass *unknownDevice;
 
 WakeupSignalClass *wakeUp;
+//END SYSTEM DEVICES
 
-// To add devices, declare them below in the appropriate category
-
-// declare binary output devices (LED, relay): 16-31
-#ifdef ACTUATORENABLED
-DigitalOutputDataClass *actuatorData;
-#endif //ACTUATORENABLED
-
-// declare analog output devices (pwm, dimmer): 32-39
-
-// declare binary input devices (button, switch, PIR-sensor): 40-47
+// Binary input settings
 #ifdef BUTTONENABLED
+#define BTN 8	// Button pin
+#define BTNDEVICEID 40
 #define TOGGLEDEVICEID 6
 #define TIMERDEVICEID 7
+DigitalInputDataClass *buttonData;
 long	timeInterval = 20 * 1000;				// timer interval in ms
 bool	toggleOnButton = true;				// toggle output on button press
-DigitalInputDataClass *buttonData;
 #endif //BUTTONENABLED
 
 #ifdef REEDSWITCHENABLED
+#define REEDSWITCHPIN 3
+#define REEDSWITCHDEVICEID 41
 DigitalInputDataClass *reedSwitchData;
 #endif //REEDSWITCHENABLED
 
-#ifdef DHTSENSORENABLED
-DHT dht(DHTPIN, DHTTYPE, 3);			// initialise temp/humidity sensor for 3.3 Volt arduino
-//DHT dht(DHTPIN, DHTTYPE);				// 5 volt power
-// declare real value sensors (temperature, humidity): 48-63
-RealInputDataClass *dhtTempSensorData;
-RealInputDataClass *dhtHumSensorData;
-#endif //DHTSENSORENABLED
+// Binary output settings
+#ifdef ACTUATORENABLED
+#define ACT1 9	// Actuator pin (LED or relay)
+#define ACTUATORDEVICEID 16
+DigitalOutputDataClass *actuatorData;
+#endif //ACTUATORENABLED
 
-// declare analog input sensors used in this node (temp, humidity): 64-71
+// Analog sensor settings
 #ifdef PHOTOSENSORENABLED
+#define LIGHTPIN A0
+#define LIGHTSENSORDEVICEID 64
 AnalogSensorDataClass *lightSensorData;
 #endif //PHOTOSENSORENABLED
 
 #ifdef FLAMESENSORENABLED
+#define FLAMEPIN A1
+#define FLAMESENSORDEVICEID 65
 AnalogSensorDataClass *flameSensorData;
 #endif //FLAMESENSORENABLED
 
 #ifdef GASSENSORENABLED
+#define GASPIN A2
+#define GASSENSORDEVICEID 66
 AnalogSensorDataClass *gasSensorData;
-#endif //GASSENSORENABELD
+#endif //GASSENSORENABLED
 
-void wakeUpHandler()
-{
-	// wakeup handler
-}
+// DHT sensor setting
+#ifdef DHTSENSORENABLED
+#define DHTPIN 4					// DHT data connection
+#define DHTTEMPDEVICEID 48
+#define DHTHUMIDITYDEVICEID 49
+#define	DHTTYPE	DHT22	// type of sensor
 
-//use this to track how many times we've woken up
-long numWakes;
+DHT dht(DHTPIN, DHTTYPE, 3);			// initialise temp/humidity sensor for 3.3 Volt arduino
+//DHT dht(DHTPIN, DHTTYPE);				// 5 volt power
+
+RealInputDataClass *dhtTempSensorData;
+RealInputDataClass *dhtHumSensorData;
+#endif //DHTSENSORENABLED
+
+//
+// END DEVICE DECLARATION
+
+// DO NOT MODIFY THE REST OF THIS HEADER UNTIL THE SETUP FUNCTION
+bool	setAck = false;					// send ACK message on 'SET' request
+bool	promiscuousMode = false; 			// only listen to nodes within the closed network
+
+#ifdef LOWPOWERNODE
+long numWakes = 0;
 unsigned long currentTime;
 long thisCycleActualMillis;
+#endif
+
+Message mes;
+RFM69_ATC radio;
+
+// adding components in setup() will add to this array and increment the count
+ComponentDataClass *connectedComponents[100];
+int connectedComponentsCount = 0;
 
 //
 //=====================		SETUP	========================================
 //
-void setup() {
-	// instantiate node system devices - DO NOT MODIFY
+void setup() 
+{
+	// DO NOT MODIFY THE BELOW CODE UNTIL INDICATED
+	//
+	// instantiate node system devices
 	uptimeData = new NodeSystemDataClass(UPTIMEDEVICEID, NULL, &getUptime);
 	txIntervalData = new NodeSystemDataClass(TXINTERVALDEVICEID, NULL, &getTxInterval);
 	rssiData = new NodeSystemDataClass(RSSIDEVICEID, NULL, &getSignalStrength);
@@ -304,11 +202,6 @@ void setup() {
 	voltageData->periodicSendEnabled = true;
 #endif //LOWPOWERNODE
 
-#ifdef BUTTONENABLED
-	toggleData = new NodeSystemDataClass(TOGGLEDEVICEID, NULL, &getToggleState);
-	timerData = new NodeSystemDataClass(TIMERDEVICEID, NULL, &getTimerInterval);
-#endif //BUTTONENABLED
-
 	// instantiate error devices
 	connectionError = new ErrorDataClass(WIRELESSCONNECTIONERROR, NULL);
 	unknownDevice = new ErrorDataClass(UNSUPPORTEDDEVICE, NULL);
@@ -316,6 +209,13 @@ void setup() {
 	// instantiate our one wakeup device - DO NOT MODIFY
 	wakeUp = new WakeupSignalClass(WAKEUPNODE, NULL);
 	wakeUp->setShouldSend(true); //always send wakeup on first loop
+	//
+	// MODIFY BELOW THIS POINT
+
+#ifdef BUTTONENABLED
+	toggleData = new NodeSystemDataClass(TOGGLEDEVICEID, NULL, &getToggleState);
+	timerData = new NodeSystemDataClass(TIMERDEVICEID, NULL, &getTimerInterval);
+#endif //BUTTONENABLED
 
 	// instantiate binary output devices - DO NOT MODIFY
 #ifdef ACTUATORENABLED
@@ -380,27 +280,22 @@ void setup() {
 	Serial.print(FREQUENCY == RF69_433MHZ ? 433 : FREQUENCY == RF69_868MHZ ? 868 : 915);
 	Serial.println(" Mhz...");
 #endif
-
-	numWakes = 0;
 }	// end setup
 
 //
 //
 //====================		MAIN	========================================
 //
-void loop() {
+void loop() 
+{
 	// RECEIVE radio input
 #ifdef LOWPOWERNODE
 	radio.sleep();
-	//delay(500);
-	//attachInterrupt(1, wakeUpHandler, HIGH);
-	//attachInterrupt(1, wakeUpHandler, LOW);
 	LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
 	thisCycleActualMillis = millis();
 	numWakes++;
 	currentTime =  millis() + (numWakes * 2000);
 	Serial.println(currentTime);
-	//detachInterrupt(1);
 	delay(500);
 #else
 	if (receiveData())
@@ -483,7 +378,8 @@ bool receiveData()
 //==============		PARSECMD: analyse messages and execute commands received from gateway
 //
 
-void parseCmd() {					// parse messages received from the gateway
+void parseCmd() 
+{					// parse messages received from the gateway
 	bool deviceFound = false;
 	for (int connectedComponentNumber = 0; connectedComponentNumber < connectedComponentsCount; connectedComponentNumber++)
 	{
@@ -556,22 +452,25 @@ void parseCmd() {					// parse messages received from the gateway
 				}
 #endif //BUTTONENABLED
 			}
-#ifdef ACTUATORENABLED
 			else if (ISDIGITALOUTPUTDEVICE(mes.devID))
 			{
-				if (mes.devID == ACTUATORDEVICEID)
-				{
-					if (mes.cmd == 0) // cmd == 0 means write 
-					{					
-						if (mes.intVal == 0 || mes.intVal == 1) 
+				if (mes.cmd == 0) // cmd == 0 means write 
+				{					
+					if (mes.intVal == 0 || mes.intVal == 1) 
+					{
+						DigitalOutputDataClass *digitalOutput;
+						for (int componentNum = 0; componentNum < connectedComponentsCount; componentNum++)
 						{
-							actuatorData->setState(mes.intVal);
-							actuatorData->setShouldSend(setAck);			// acknowledge message ?
+							if (connectedComponents[componentNum]->deviceId == mes.devID)
+							{
+								digitalOutput = (DigitalOutputDataClass *)connectedComponents[componentNum];
+							}
 						}
+						digitalOutput->setState(mes.intVal);
+						digitalOutput->setShouldSend(setAck);			// acknowledge message ?
 					}
 				}
 			}
-#endif //ACTUATORENABELD
 		}
 	}
 	if (!deviceFound)
@@ -585,8 +484,8 @@ void parseCmd() {					// parse messages received from the gateway
 //======================		SENDMSG: sends messages that are flagged for transmission
 //
 
-void sendMsg() {					// prepares values to be transmitted
-	//bool tx = false; 					// transmission flag
+void sendMsg() 
+{					
 	mes.nodeID = NODEID;
 	mes.intVal = 0;
 	mes.fltVal = 0;
