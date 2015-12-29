@@ -1,4 +1,8 @@
 // RfmAioNodeLibrary.h
+// author: Danny Oleson - dannyoleson@gmail.com
+// date: 12/28/2015
+//
+// for use with RfmNode.ino - https://github.com/dannyoleson/RFM69-MQTT-client/tree/master/RfmNode
 
 #ifndef _RFMAIONODELIBRARY_h
 #define _RFMAIONODELIBRARY_h
@@ -68,9 +72,13 @@
 #define VERSIONDEVICEID 3
 #define VOLTAGEDEVICEID 4
 #define ACKDEVICEID 5
+#define TOGGLEDEVICEID 6
+#define TIMERDEVICEID 7
 #define WIRELESSCONNECTIONERROR 90
 #define UNSUPPORTEDDEVICE 92
 #define WAKEUPNODE 99
+
+#define ONESECOND 1000
 
 #define SERIAL_BAUD 115200
 

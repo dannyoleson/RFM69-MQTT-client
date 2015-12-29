@@ -1,4 +1,8 @@
 // ButtonInputData.h
+// author: Danny Oleson - dannyoleson@gmail.com
+// date: 12/28/2015
+//
+// for use with RfmNode.ino - https://github.com/dannyoleson/RFM69-MQTT-client/tree/master/RfmNode
 
 #ifndef _BUTTONINPUTDATA_h
 #define _BUTTONINPUTDATA_h
