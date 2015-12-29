@@ -33,6 +33,7 @@ bool RealInputDataClass::getShouldSend()
 
 float RealInputDataClass::getValueToSend()
 {
+#ifdef LOWPOWERNODE
 	int sensorHoldoffTime = 2500;
 	int delayTime = sensorHoldoffTime - (millis() - thisCycleActualMillis);
 	Serial.print("sensor has been powered on for ");
@@ -43,6 +44,8 @@ float RealInputDataClass::getValueToSend()
 	{
 		delay(delayTime);
 	}
+#endif //LOWPOWERNODE
+
 	lastTxTime = currentTime;
 	return getValueCB();
 }

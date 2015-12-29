@@ -66,9 +66,9 @@
 //
 // CONFIGURATION PARAMETERS
 //
-#define NODEID 3 					// unique node ID within the closed network
+#define NODEID 2 					// unique node ID within the closed network
 #define NETWORKID 100					// network ID of the network
-#define ENCRYPTKEY "5029386215036408" 			// 16-char encryption key; same as on Gateway!
+#define ENCRYPTKEY "xxxxxxxxxxxxxxxx" 			// 16-char encryption key; same as on Gateway!
 #define DEBUG						// uncomment for debugging
 #define LOWPOWERNODE				// uncomment for battery-powered node
 
@@ -77,10 +77,10 @@
 //
 //#define PHOTOSENSORENABLED
 #define REEDSWITCHENABLED
-//#define BUTTONENABLED
-//#define ACTUATORENABLED
-//#define FLAMESENSORENABLED
-//#define GASSENSORENABLED
+#define BUTTONENABLED
+#define ACTUATORENABLED
+#define FLAMESENSORENABLED
+#define GASSENSORENABLED
 #define DHTSENSORENABLED
 
 // TO ADD DEVICES, DECLARE THEM BELOW ALONG WITH NECESSARY DATA AS INDICATED BY THE CLASS
@@ -169,9 +169,11 @@ bool	promiscuousMode = false; 			// only listen to nodes within the closed netwo
 
 #ifdef LOWPOWERNODE
 long numWakes = 0;
-unsigned long currentTime;
 long thisCycleActualMillis;
 #endif
+
+// use this instead of millis() - it allows the low power mode to still track time.  Sort of.
+unsigned long currentTime;
 
 Message mes;
 RFM69_ATC radio;
@@ -668,14 +670,14 @@ float getAck()
 }
 
 #ifdef BUTTONENABLED
-int getToggleState()
+float getToggleState()
 {
-	return toggleOnButton;
+	return (float)toggleOnButton;
 }
 
-int getTimerInterval()
+float getTimerInterval()
 {
-	return timeInterval;
+	return (float)timeInterval;
 }
 #endif //BUTTONENABLED
 
