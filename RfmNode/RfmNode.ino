@@ -68,7 +68,7 @@
 //
 #define NODEID 2 					// unique node ID within the closed network
 #define NETWORKID 100					// network ID of the network
-#define ENCRYPTKEY "xxxxxxxxxxxxxxxx" 			// 16-char encryption key; same as on Gateway!
+#define ENCRYPTKEY "5029386215036408" 			// 16-char encryption key; same as on Gateway!
 #define DEBUG						// uncomment for debugging
 #define LOWPOWERNODE				// uncomment for battery-powered node
 
@@ -77,7 +77,7 @@
 //
 //#define PHOTOSENSORENABLED
 #define REEDSWITCHENABLED
-#define BUTTONENABLED
+//#define BUTTONENABLED
 #define ACTUATORENABLED
 #define FLAMESENSORENABLED
 #define GASSENSORENABLED
@@ -107,11 +107,7 @@ WakeupSignalClass *wakeUp;
 #ifdef BUTTONENABLED
 #define BTN 8	// Button pin
 #define BTNDEVICEID 40
-#define TOGGLEDEVICEID 6
-#define TIMERDEVICEID 7
 DigitalInputDataClass *buttonData;
-long	timeInterval = 20 * 1000;				// timer interval in ms
-bool	toggleOnButton = true;				// toggle output on button press
 #endif //BUTTONENABLED
 
 #ifdef REEDSWITCHENABLED
@@ -163,6 +159,10 @@ RealInputDataClass *dhtHumSensorData;
 //
 // END DEVICE DECLARATION
 
+//if using buttons, you can change behavior here
+long	timeInterval = 20 * ONESECOND;				// timer interval in ms
+bool	toggleOnButton = true;				// toggle output on button press
+
 // DO NOT MODIFY THE REST OF THIS HEADER UNTIL THE SETUP FUNCTION
 bool	setAck = false;					// send ACK message on 'SET' request
 bool	promiscuousMode = false; 			// only listen to nodes within the closed network
@@ -211,13 +211,11 @@ void setup()
 	// instantiate our one wakeup device - DO NOT MODIFY
 	wakeUp = new WakeupSignalClass(WAKEUPNODE, NULL);
 	wakeUp->setShouldSend(true); //always send wakeup on first loop
-	//
-	// MODIFY BELOW THIS POINT
 
-#ifdef BUTTONENABLED
 	toggleData = new NodeSystemDataClass(TOGGLEDEVICEID, NULL, &getToggleState);
 	timerData = new NodeSystemDataClass(TIMERDEVICEID, NULL, &getTimerInterval);
-#endif //BUTTONENABLED
+	//
+	// MODIFY BELOW THIS POINT
 
 	// instantiate binary output devices - DO NOT MODIFY
 #ifdef ACTUATORENABLED
@@ -226,7 +224,7 @@ void setup()
 
 	// instantiate binary input devices - DO NOT MODIFY
 #ifdef BUTTONENABLED
-	int buttonDelay = 2 * 1000;
+	int buttonDelay = 2 * ONESECOND;
 	buttonData = new DigitalInputDataClass(BTNDEVICEID, BTN, buttonDelay);
 #endif //BUTTONENABLED
 
@@ -240,7 +238,7 @@ void setup()
 	dht.begin();
 	bool useFarenheit = true;
 	bool forceReading = false;
-	long overrideTxInterval = 30 * 1000;
+	long overrideTxInterval = 30 * ONESECOND;
 	dhtTempSensorData = new RealInputDataClass(DHTTEMPDEVICEID, DHTPIN, overrideTxInterval, &getDhtTemperatureFarenheit);
 	dhtTempSensorData->periodicSendEnabled = true;
 	dhtHumSensorData = new RealInputDataClass(DHTHUMIDITYDEVICEID, DHTPIN, overrideTxInterval, &getDhtHumidity);
@@ -250,17 +248,17 @@ void setup()
 	// instantiate analog sensors - no callback required
 #ifdef PHOTOSENSORENABLED
 	int lightDeltaThreshold = 50;
-	lightSensorData = new AnalogSensorDataClass(2 * 1000, lightDeltaThreshold, LIGHTPIN, LIGHTSENSORDEVICEID);
+	lightSensorData = new AnalogSensorDataClass(2 * ONESECOND, lightDeltaThreshold, LIGHTPIN, LIGHTSENSORDEVICEID);
 #endif //PHOTOSENSORENABLED
 
 #ifdef FLAMESENSORENABLED
 	int flameDeltaThreshold = 20;
-	flameSensorData = new AnalogSensorDataClass(2 * 1000, flameDeltaThreshold, FLAMEPIN, FLAMESENSORDEVICEID);
+	flameSensorData = new AnalogSensorDataClass(2 * ONESECOND, flameDeltaThreshold, FLAMEPIN, FLAMESENSORDEVICEID);
 #endif //FLAMESENSORENABLED
 	
 #ifdef GASSENSORENABLED
 	int gasDeltaThreshold = 70;
-	gasSensorData = new AnalogSensorDataClass(5 * 1000, gasDeltaThreshold, GASPIN, GASSENSORDEVICEID);
+	gasSensorData = new AnalogSensorDataClass(5 * ONESECOND, gasDeltaThreshold, GASPIN, GASSENSORDEVICEID);
 #endif //GASSENSORENABLED
 
 #ifdef DEBUG
@@ -296,7 +294,11 @@ void loop()
 	LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
 	thisCycleActualMillis = millis();
 	numWakes++;
-	currentTime =  millis() + (numWakes * 2000);
+	// when using low power, we can approximate actual time by adding millis()
+	// to the number of times we've woken up multiplied by the amount of time we have been sleeping
+	// it appears there is -~8% error to this, though, so we're making up for that by adding
+	int errorCorrection = 160; // 8% of sleep time (first arg to powerDown)
+	currentTime =  millis() + (numWakes * ((2 * ONESECOND) + 160));
 	Serial.println(currentTime);
 	delay(500);
 #else
@@ -428,7 +430,6 @@ void parseCmd()
 						thisDevice->setShouldSend(setAck);			// acknowledge message ?
 					}
 				}
-#ifdef BUTTONENABLED
 				else if (mes.devID == TOGGLEDEVICEID)
 				{
 					if (mes.cmd == WRITE) 
@@ -452,7 +453,6 @@ void parseCmd()
 						thisDevice->setShouldSend(setAck);			// acknowledge message ?
 					}							// cmd == 1 means read a value
 				}
-#endif //BUTTONENABLED
 			}
 			else if (ISDIGITALOUTPUTDEVICE(mes.devID))
 			{
@@ -669,7 +669,6 @@ float getAck()
 	return setAck * 1.0;
 }
 
-#ifdef BUTTONENABLED
 float getToggleState()
 {
 	return (float)toggleOnButton;
@@ -679,7 +678,6 @@ float getTimerInterval()
 {
 	return (float)timeInterval;
 }
-#endif //BUTTONENABLED
 
 #ifdef DHTSENSORENABLED
 float getDhtTemperatureFarenheit()

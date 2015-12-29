@@ -5,7 +5,7 @@
 #include "ButtonInputData.h"
 
 ButtonInputDataClass::ButtonInputDataClass(int id, uint8_t pin, DigitalOutputDataClass *outputDevice)
-	: DigitalInputDataClass(id, pin, 2*1000)
+	: DigitalInputDataClass(id, pin, 2 * ONESECOND)
 {
 	m_isToggle = true;
 	m_timerValue = 0;

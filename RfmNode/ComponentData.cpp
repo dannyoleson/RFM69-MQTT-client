@@ -6,7 +6,7 @@
 
 ComponentDataClass::ComponentDataClass(int id, uint8_t pin)
 {
-	txInterval = 20 * 1000;
+	txInterval = 20 * ONESECOND;
 	deviceId = id;
 	m_dataPin = pin;
 	m_shouldSend = false;
