@@ -7,20 +7,14 @@
 #ifndef _RFMAIONODELIBRARY_h
 #define _RFMAIONODELIBRARY_h
 
-#if defined(ARDUINO) && ARDUINO >= 100
-	#include "arduino.h"
-#else
-	#include "WProgram.h"
-#endif
-
-#include "ButtonInputData.h"
-#include "NodeSystemData.h"
-#include "RealInputData.h"
-#include "DigitalOutputData.h"
-#include "DigitalInputData.h"
-#include "AnalogOutputData.h"
-#include "AnalogSensorData.h"
-#include "ComponentData.h"
+#include <ButtonInputData.h>
+#include <NodeSystemData.h>
+#include <RealInputData.h>
+#include <DigitalOutputData.h>
+#include <DigitalInputData.h>
+#include <AnalogOutputData.h>
+#include <AnalogSensorData.h>
+#include <ComponentData.h>
 
 //AIO - All In One Node
 #define VERSION "AIO V2.2"				// this value can be queried as device 3
@@ -77,8 +71,6 @@
 #define WIRELESSCONNECTIONERROR 90
 #define UNSUPPORTEDDEVICE 92
 #define WAKEUPNODE 99
-
-#define ONESECOND 1000
 
 #define SERIAL_BAUD 115200
 

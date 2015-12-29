@@ -8,6 +8,7 @@
 RealInputDataClass::RealInputDataClass(int id, int pin, flt_call_back getValueCallBack)
 	: ComponentDataClass(id, pin)
 {
+	periodicSendEnabled = true;
 	Serial.println(id);
 	lastTxTime = -1;
 	getValueCB = getValueCallBack;
@@ -16,6 +17,7 @@ RealInputDataClass::RealInputDataClass(int id, int pin, flt_call_back getValueCa
 RealInputDataClass::RealInputDataClass(int id, int pin, long overrideTxInterval, flt_call_back getValueCallBack)
 	: ComponentDataClass(id, pin, overrideTxInterval)
 {
+	periodicSendEnabled = true;
 	Serial.println(id);
 	lastTxTime = -1;
 	getValueCB = getValueCallBack;

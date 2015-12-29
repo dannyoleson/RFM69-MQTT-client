@@ -71,17 +71,17 @@
 #define NETWORKID 100					// network ID of the network
 #define ENCRYPTKEY "xxxxxxxxxxxxxxxx" 			// 16-char encryption key; same as on Gateway!
 #define DEBUG						// uncomment for debugging
-#define LOWPOWERNODE				// uncomment for battery-powered node
+//#define LOWPOWERNODE				// uncomment for battery-powered node
 
 //
 // ENABLE OR DISABLE DEVICES HERE
 //
-#define PHOTOSENSORENABLED
+//#define PHOTOSENSORENABLED
 #define REEDSWITCHENABLED
-#define BUTTONENABLED
-#define ACTUATORENABLED
-#define FLAMESENSORENABLED
-#define GASSENSORENABLED
+//#define BUTTONENABLED
+//#define ACTUATORENABLED
+//#define FLAMESENSORENABLED
+//#define GASSENSORENABLED
 #define DHTSENSORENABLED
 
 // TO ADD DEVICES, DECLARE THEM BELOW ALONG WITH NECESSARY DATA AS INDICATED BY THE CLASS
@@ -241,9 +241,7 @@ void setup()
 	bool forceReading = false;
 	long overrideTxInterval = 30 * ONESECOND;
 	dhtTempSensorData = new RealInputDataClass(DHTTEMPDEVICEID, DHTPIN, overrideTxInterval, &getDhtTemperatureFarenheit);
-	dhtTempSensorData->periodicSendEnabled = true;
 	dhtHumSensorData = new RealInputDataClass(DHTHUMIDITYDEVICEID, DHTPIN, overrideTxInterval, &getDhtHumidity);
-	dhtHumSensorData->periodicSendEnabled = true;
 #endif //DHTSENSORENABLED
 
 	// instantiate analog sensors - no callback required
@@ -289,7 +287,6 @@ void setup()
 //
 void loop() 
 {
-	// RECEIVE radio input
 #ifdef LOWPOWERNODE
 	radio.sleep();
 	LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
@@ -298,11 +295,12 @@ void loop()
 	// when using low power, we can approximate actual time by adding millis()
 	// to the number of times we've woken up multiplied by the amount of time we have been sleeping
 	// it appears there is -~8% error to this, though, so we're making up for that by adding
-	int errorCorrection = 160; // 8% of sleep time (first arg to powerDown)
+	// 8% of sleep time (first arg to powerDown)
+	int errorCorrection = 160; 
 	currentTime =  millis() + (numWakes * ((2 * ONESECOND) + 160));
-	Serial.println(currentTime);
 	delay(500);
 #else
+	// RECEIVE radio input
 	if (receiveData())
 	{
 		parseCmd();				// receive and parse any radio input
