@@ -62,22 +62,23 @@
 //#define FREQUENCY RF69_915MHZ
 
 #define IS_RFM69HW 					// uncomment only for RFM69HW! 
+#define ONESECOND 1000
 
 //
 // CONFIGURATION PARAMETERS
 //
 #define NODEID 2 					// unique node ID within the closed network
 #define NETWORKID 100					// network ID of the network
-#define ENCRYPTKEY "5029386215036408" 			// 16-char encryption key; same as on Gateway!
+#define ENCRYPTKEY "xxxxxxxxxxxxxxxx" 			// 16-char encryption key; same as on Gateway!
 #define DEBUG						// uncomment for debugging
 #define LOWPOWERNODE				// uncomment for battery-powered node
 
 //
 // ENABLE OR DISABLE DEVICES HERE
 //
-//#define PHOTOSENSORENABLED
+#define PHOTOSENSORENABLED
 #define REEDSWITCHENABLED
-//#define BUTTONENABLED
+#define BUTTONENABLED
 #define ACTUATORENABLED
 #define FLAMESENSORENABLED
 #define GASSENSORENABLED
