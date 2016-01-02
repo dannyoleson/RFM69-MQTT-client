@@ -12,14 +12,15 @@
 class AnalogSensorDataClass : public ComponentDataClass
 {
  protected:
+	 int	m_pollInterval;
+	 long	m_lastPollTime;
+	 long	m_lastSendTime;
+	 int	m_currentReading;
+	 int	m_deltaThreshold; // +/- this delta will trigger a transmission of data
+	 int	m_lastSentValue;
+	 void	readSensorValue();
 
- public:
-	int		pollInterval;
-	long	lastPollTime;
-	int		lastReading;
-	int		deltaThreshold; // +/- this delta will trigger a transmission of data
-	int		valueToSend;
-
+public:
 	AnalogSensorDataClass(int sensorPollInterval, int sensorDeltaThreshold, uint8_t sensorDataPin, int sensorDeviceId);
 	bool getShouldSend();
 	int getValueToSend();

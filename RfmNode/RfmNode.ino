@@ -76,12 +76,12 @@
 //
 // ENABLE OR DISABLE DEVICES HERE
 //
-//#define PHOTOSENSORENABLED
+#define PHOTOSENSORENABLED
 #define REEDSWITCHENABLED
-//#define BUTTONENABLED
-//#define ACTUATORENABLED
-//#define FLAMESENSORENABLED
-//#define GASSENSORENABLED
+#define BUTTONENABLED
+#define ACTUATORENABLED
+#define FLAMESENSORENABLED
+#define GASSENSORENABLED
 #define DHTSENSORENABLED
 
 // TO ADD DEVICES, DECLARE THEM BELOW ALONG WITH NECESSARY DATA AS INDICATED BY THE CLASS
@@ -230,8 +230,8 @@ void setup()
 #endif //BUTTONENABLED
 
 #ifdef REEDSWITCHENABLED
-	reedSwitchData = new DigitalInputDataClass(REEDSWITCHDEVICEID, REEDSWITCHPIN, 1000);
-	//reedSwitchData->periodicSendEnabled = true;
+	reedSwitchData = new DigitalInputDataClass(REEDSWITCHDEVICEID, REEDSWITCHPIN, 100);
+	reedSwitchData->periodicSendEnabled = true;
 #endif //REEDSWITCHENABLED
 
 	// instantiate real data sensors - callbacks are required
@@ -248,16 +248,19 @@ void setup()
 #ifdef PHOTOSENSORENABLED
 	int lightDeltaThreshold = 50;
 	lightSensorData = new AnalogSensorDataClass(2 * ONESECOND, lightDeltaThreshold, LIGHTPIN, LIGHTSENSORDEVICEID);
+	lightSensorData->periodicSendEnabled = true;
 #endif //PHOTOSENSORENABLED
 
 #ifdef FLAMESENSORENABLED
 	int flameDeltaThreshold = 20;
 	flameSensorData = new AnalogSensorDataClass(2 * ONESECOND, flameDeltaThreshold, FLAMEPIN, FLAMESENSORDEVICEID);
+	flameSensorData->periodicSendEnabled = true;
 #endif //FLAMESENSORENABLED
 	
 #ifdef GASSENSORENABLED
 	int gasDeltaThreshold = 70;
 	gasSensorData = new AnalogSensorDataClass(5 * ONESECOND, gasDeltaThreshold, GASPIN, GASSENSORDEVICEID);
+	gasSensorData->periodicSendEnabled = true;
 #endif //GASSENSORENABLED
 
 #ifdef DEBUG

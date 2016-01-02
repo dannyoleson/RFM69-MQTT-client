@@ -12,44 +12,49 @@ AnalogSensorDataClass::AnalogSensorDataClass(
 	int sensorDeviceId)
 	: ComponentDataClass(sensorDeviceId, sensorDataPin)
 {
-	pollInterval = sensorPollInterval;
-	deltaThreshold = sensorDeltaThreshold;
-	lastPollTime = -1;
-	lastReading = -1;
+	m_pollInterval = sensorPollInterval;
+	m_deltaThreshold = sensorDeltaThreshold;
+	m_lastPollTime = -1;
+	m_currentReading = -1;
+	m_lastSendTime = -1;
 }
 
 bool AnalogSensorDataClass::getShouldSend()
 {
 	bool shouldSend = m_shouldSend;
-	bool isFirstRun = lastPollTime == -1;
+	bool isFirstRun = m_lastSendTime == -1;
 
-	if (((currentTime - lastPollTime) > pollInterval) || isFirstRun)
+	readSensorValue();
+
+	if (m_currentReading < (m_lastSentValue - m_deltaThreshold) ||
+		m_currentReading > (m_lastSentValue + m_deltaThreshold))
 	{
-		int currentLevel = analogRead(m_dataPin);
-		lastPollTime = currentTime;
-
-		if (currentLevel < lastReading - deltaThreshold ||
-			currentLevel > lastReading + deltaThreshold)
-		{
-			lastReading = currentLevel;
-			valueToSend = currentLevel;
-			shouldSend = true;
-		}
+		shouldSend = true;
 	}
-	else if (periodicSendEnabled)
+	else if (periodicSendEnabled && (currentTime - m_lastSendTime > txInterval)
+		|| isFirstRun)
 	{
-		if ((currentTime - lastPollTime) > txInterval)
-		{
-			lastPollTime = currentTime;
-			shouldSend = true;
-		}
+		shouldSend = true;
 	}
 
 	return shouldSend;
 }
 
+void AnalogSensorDataClass::readSensorValue()
+{
+	bool isFirstRun = m_currentReading == -1;
+	if ((currentTime - m_lastPollTime) > m_pollInterval ||
+		isFirstRun)
+	{
+		m_currentReading = analogRead(m_dataPin);
+		m_lastPollTime = currentTime;
+	}
+}
+
 int AnalogSensorDataClass::getValueToSend()
 {
-	return valueToSend;
+	m_lastSendTime = currentTime;
+	m_lastSentValue = m_currentReading;
+	return m_currentReading;
 }
 
