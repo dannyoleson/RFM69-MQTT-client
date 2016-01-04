@@ -78,8 +78,8 @@
 //
 #define PHOTOSENSORENABLED
 #define REEDSWITCHENABLED
-#define BUTTONENABLED
-#define ACTUATORENABLED
+//#define BUTTONENABLED
+#define PIRENABLED
 #define FLAMESENSORENABLED
 #define GASSENSORENABLED
 #define DHTSENSORENABLED
@@ -113,7 +113,7 @@ DigitalInputDataClass *buttonData;
 
 #ifdef REEDSWITCHENABLED
 #define REEDSWITCHPIN 3
-#define REEDSWITCHDEVICEID 41
+#define REEDSWITCHDEVICEID 42
 DigitalInputDataClass *reedSwitchData;
 #endif //REEDSWITCHENABLED
 
@@ -123,6 +123,12 @@ DigitalInputDataClass *reedSwitchData;
 #define ACTUATORDEVICEID 16
 DigitalOutputDataClass *actuatorData;
 #endif //ACTUATORENABLED
+
+#ifdef PIRENABLED
+#define PIRPIN 8
+#define PIRDEVICEID 41
+DigitalInputDataClass *pirData;
+#endif
 
 // Analog sensor settings
 #ifdef PHOTOSENSORENABLED
@@ -223,6 +229,18 @@ void setup()
 	actuatorData = new DigitalOutputDataClass(ACTUATORDEVICEID, ACT1);
 #endif //ACTUATORENABLED
 
+#ifdef ACT1ENABLED
+	actuator1Data = new DigitalOutputDataClass(ACT1DEVICEID, ACT1PIN);
+#endif
+
+#ifdef ACT2ENABLED
+	actuator2Data = new DigitalOutputDataClass(ACT2DEVICEID, ACT2PIN);
+#endif
+
+#ifdef PIRENABLED
+	pirData = new DigitalInputDataClass(PIRDEVICEID, PIRPIN, ONESECOND);
+#endif
+
 	// instantiate binary input devices - DO NOT MODIFY
 #ifdef BUTTONENABLED
 	int buttonDelay = 2 * ONESECOND;
@@ -230,7 +248,7 @@ void setup()
 #endif //BUTTONENABLED
 
 #ifdef REEDSWITCHENABLED
-	reedSwitchData = new DigitalInputDataClass(REEDSWITCHDEVICEID, REEDSWITCHPIN, 100);
+	reedSwitchData = new DigitalInputDataClass(REEDSWITCHDEVICEID, REEDSWITCHPIN, 10);
 	reedSwitchData->periodicSendEnabled = true;
 #endif //REEDSWITCHENABLED
 
@@ -299,7 +317,7 @@ void loop()
 	// to the number of times we've woken up multiplied by the amount of time we have been sleeping
 	// it appears there is -~8% error to this, though, so we're making up for that by adding
 	// 8% of sleep time (first arg to powerDown)
-	int errorCorrection = 160; 
+	int errorCorrection = 180; 
 	currentTime =  millis() + (numWakes * ((2 * ONESECOND) + 160));
 	delay(500);
 #else
@@ -613,7 +631,7 @@ void sendMsg()
 
 void txRadio()						// Transmits the 'mes'-struct to the gateway
 {
-	if (radio.sendWithRetry(GATEWAYID, (const void*)(&mes), sizeof(mes), 3, ACK_TIME))
+	if (radio.sendWithRetry(GATEWAYID, (const void*)(&mes), sizeof(mes), 5, ACK_TIME))
 #ifdef DEBUG
 	{
 		Serial.print(" message ");
