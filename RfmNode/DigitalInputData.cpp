@@ -24,19 +24,19 @@ bool DigitalInputDataClass::getShouldSend()
 	bool isFirstRun = m_lastInputTime == -1;
 
 	int currentState = getState();
-	if ((((currentTime - m_lastInputTime > (long)m_inputDelay) && m_lastState != currentState))
+	if ((((millis() - m_lastInputTime > (long)m_inputDelay) && m_lastState != currentState))
 		|| isFirstRun)
 	{
 		m_lastState = currentState;
 		shouldSend = true;
-		m_lastInputTime = currentTime;
+		m_lastInputTime = millis();
 	}
 	else if (periodicSendEnabled)
 	{
-		if ((currentTime - m_lastInputTime) > txInterval)
+		if ((millis() - m_lastInputTime) > txInterval)
 		{
 			shouldSend = true;
-			m_lastInputTime = currentTime;
+			m_lastInputTime = millis();
 		}
 	}
 

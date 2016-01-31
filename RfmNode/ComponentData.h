@@ -36,8 +36,8 @@ class ComponentDataClass
 
 extern ComponentDataClass *connectedComponents[100];
 extern int connectedComponentsCount;
-extern unsigned long currentTime;
 extern long thisCycleActualMillis;
+extern bool isLowPowerNode;
 
 #endif
 

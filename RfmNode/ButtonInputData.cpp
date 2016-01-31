@@ -28,10 +28,10 @@ void ButtonInputDataClass::setInputHandlerType(bool isToggle, int timerValue = 0
 
 void ButtonInputDataClass::handleInput()
 {
-	if (((currentTime - m_lastInputTime) > (long)m_inputDelay))
+	if (((millis() - m_lastInputTime) > (long)m_inputDelay))
 	{
 		int currentState = getState();
-		m_lastInputTime = currentTime;
+		m_lastInputTime = millis();
 		if (m_lastState != currentState)
 		{
 			m_shouldSend = true;
@@ -45,7 +45,7 @@ void ButtonInputDataClass::handleInput()
 				else if (m_timerValue > 0 && !m_timerRunning)
 				{
 					m_timerRunning = true;
-					m_timerStartTime = currentTime;
+					m_timerStartTime = millis();
 					m_outputDevice->setState(HIGH);
 				}
 			}
@@ -57,7 +57,7 @@ void ButtonInputDataClass::handleTimer()
 {
 	if (m_timerRunning)
 	{
-		if (currentTime - m_timerStartTime > m_timerValue)
+		if (millis() - m_timerStartTime > m_timerValue)
 		{
 			m_timerRunning = false;
 			m_outputDevice->setState(LOW);

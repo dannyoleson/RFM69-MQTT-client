@@ -76,13 +76,17 @@
 //
 // ENABLE OR DISABLE DEVICES HERE
 //
-#define PHOTOSENSORENABLED
-#define REEDSWITCHENABLED
+//#define PHOTOSENSORENABLED
+//#define REEDSWITCHENABLED
 //#define BUTTONENABLED
-#define PIRENABLED
-#define FLAMESENSORENABLED
-#define GASSENSORENABLED
+//#define ACTUATORENABLED
+//#define ACT1ENABLED // an additional actuator
+//#define ACT2ENABLED // yet another actuator
+//#define PIRENABLED
+//#define FLAMESENSORENABLED
+//#define GASSENSORENABLED
 #define DHTSENSORENABLED
+//#define RAINSENSORENABLED
 
 // TO ADD DEVICES, DECLARE THEM BELOW ALONG WITH NECESSARY DATA AS INDICATED BY THE CLASS
 // USING A DEFINE FOR EACH DEVICE BEING ENABLED IS WHAT ALLOWS THIS CODE TO WORK ON A DEVICE
@@ -124,6 +128,18 @@ DigitalInputDataClass *reedSwitchData;
 DigitalOutputDataClass *actuatorData;
 #endif //ACTUATORENABLED
 
+#ifdef ACT1ENABLED
+#define ACT1PIN 6	// Actuator pin (LED or relay)
+#define ACT1DEVICEID 16
+DigitalOutputDataClass *actuator1Data;
+#endif
+
+#ifdef ACT2ENABLED
+#define ACT2PIN 7	// Actuator pin (LED or relay)
+#define ACT2DEVICEID 17
+DigitalOutputDataClass *actuator2Data;
+#endif
+
 #ifdef PIRENABLED
 #define PIRPIN 8
 #define PIRDEVICEID 41
@@ -149,6 +165,12 @@ AnalogSensorDataClass *flameSensorData;
 AnalogSensorDataClass *gasSensorData;
 #endif //GASSENSORENABLED
 
+#ifdef RAINSENSORENABLED
+#define RAINPIN A0
+#define RAINSENSORDEVICEID 67
+AnalogSensorDataClass *rainSensorData;
+#endif //RAINSENSORENABLED
+
 // DHT sensor setting
 #ifdef DHTSENSORENABLED
 #define DHTPIN 4					// DHT data connection
@@ -158,7 +180,6 @@ AnalogSensorDataClass *gasSensorData;
 
 DHT dht(DHTPIN, DHTTYPE, 3);			// initialise temp/humidity sensor for 3.3 Volt arduino
 //DHT dht(DHTPIN, DHTTYPE);				// 5 volt power
-
 RealInputDataClass *dhtTempSensorData;
 RealInputDataClass *dhtHumSensorData;
 #endif //DHTSENSORENABLED
@@ -173,14 +194,14 @@ bool	toggleOnButton = true;				// toggle output on button press
 // DO NOT MODIFY THE REST OF THIS HEADER UNTIL THE SETUP FUNCTION
 bool	setAck = false;					// send ACK message on 'SET' request
 bool	promiscuousMode = false; 			// only listen to nodes within the closed network
+bool	isLowPowerNode;
 
 #ifdef LOWPOWERNODE
 long numWakes = 0;
 long thisCycleActualMillis;
+bool firstLoop = true;
+int wakeUpPinState;
 #endif
-
-// use this instead of millis() - it allows the low power mode to still track time.  Sort of.
-unsigned long currentTime;
 
 Message mes;
 RFM69_ATC radio;
@@ -203,13 +224,15 @@ void setup()
 	versionData = new NodeSystemDataClass(VERSIONDEVICEID, NULL, NULL);
 	voltageData = new NodeSystemDataClass(VOLTAGEDEVICEID, NULL, &getVoltage);
 	ackData = new NodeSystemDataClass(ACKDEVICEID, NULL, &getAck);
+
+	//externed in componentdata.h for all device types to see
+	isLowPowerNode = false;
 #ifdef LOWPOWERNODE
-	//pinMode(REEDSWITCHPIN, INPUT);
-	// if running on low power, you won't be able to query.  These will always send their status ever txInterval seconds
-	uptimeData->periodicSendEnabled = true;
-	rssiData->periodicSendEnabled = true;
-	voltageData->periodicSendEnabled = true;
+	pinMode(REEDSWITCHPIN, INPUT);
+	isLowPowerNode = true;
+	wakeUpPinState = digitalRead(REEDSWITCHPIN);
 #endif //LOWPOWERNODE
+
 
 	// instantiate error devices
 	connectionError = new ErrorDataClass(WIRELESSCONNECTIONERROR, NULL);
@@ -281,6 +304,11 @@ void setup()
 	gasSensorData->periodicSendEnabled = true;
 #endif //GASSENSORENABLED
 
+#ifdef RAINSENSORENABLED
+	int rainSenorThreshold = 20;
+	rainSensorData = new AnalogSensorDataClass(2 * ONESECOND, rainSenorThreshold, RAINPIN, RAINSENSORDEVICEID);
+#endif //RAINSENSORENABLED
+
 #ifdef DEBUG
 	Serial.begin(SERIAL_BAUD);
 #endif
@@ -288,7 +316,7 @@ void setup()
 #ifdef IS_RFM69HW
 	radio.setHighPower(); 					// only for RFM69HW!
 #endif
-	radio.encrypt(ENCRYPTKEY);				// set radio encryption	`
+	radio.encrypt(ENCRYPTKEY);				// set radio encryption
 	radio.promiscuous(promiscuousMode);			// only listen to closed network
 
 	radio.enableAutoPower(-90);
@@ -309,24 +337,45 @@ void setup()
 void loop() 
 {
 #ifdef LOWPOWERNODE
+	// how many times 8s an uninterrupted sleep should occur
+	// increase this number to lower node power usage
+	// at the cost of getting updates less frequently
+	const int sleepMultiplier = 11; 
+
+	attachInterrupt(1, wakeUpHandler, !wakeUpPinState);
 	radio.sleep();
-	LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
+
+	// sleep 8s * number of user-defined sleep-cycles
+	for (int loop = 0; loop < sleepMultiplier && digitalRead(REEDSWITCHPIN) == wakeUpPinState && !firstLoop; loop++)
+	{
+		LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+	}
+
+	wakeUpPinState = digitalRead(REEDSWITCHPIN);
+
+	// set all connected components to send starting after system devices since status can't be requested
+	for (int component = 0; component < connectedComponentsCount; component++)
+	{
+		if (connectedComponents[component]->deviceId >= 16 && connectedComponents[component]->deviceId < 90)
+		{
+			connectedComponents[component]->setShouldSend(true);
+		}
+	}
+	
+	//set the system devices for manual send
+	rssiData->setShouldSend(true);
+	voltageData->setShouldSend(true);
+
+	detachInterrupt(1);
 	thisCycleActualMillis = millis();
 	numWakes++;
-	// when using low power, we can approximate actual time by adding millis()
-	// to the number of times we've woken up multiplied by the amount of time we have been sleeping
-	// it appears there is -~8% error to this, though, so we're making up for that by adding
-	// 8% of sleep time (first arg to powerDown)
-	int errorCorrection = 180; 
-	currentTime =  millis() + (numWakes * ((2 * ONESECOND) + 160));
-	delay(500);
+	firstLoop = false;
 #else
 	// RECEIVE radio input
 	if (receiveData())
 	{
 		parseCmd();				// receive and parse any radio input
 	}
-	currentTime = millis();
 #endif
 
 	// find buttons and handle their timers appropriately
@@ -411,7 +460,6 @@ void parseCmd()
 		thisDevice->setShouldSend(false);
 		if (mes.devID == thisDevice->deviceId)
 		{
-			Serial.println(mes.devID);
 			deviceFound = true;
 
 			if (mes.cmd == READ)
@@ -653,7 +701,7 @@ void txRadio()						// Transmits the 'mes'-struct to the gateway
 
 float getUptime()
 {
-	return currentTime / 60000;
+	return millis() / 60000;
 }
 
 float getTxInterval()
@@ -698,6 +746,13 @@ float getTimerInterval()
 {
 	return (float)timeInterval;
 }
+
+#ifdef LOWPOWERNODE
+void wakeUpHandler()
+{
+	// Just a handler for the pin interrupt.
+}
+#endif //LOWPOWERNODE
 
 #ifdef DHTSENSORENABLED
 float getDhtTemperatureFarenheit()

@@ -9,7 +9,6 @@ RealInputDataClass::RealInputDataClass(int id, int pin, flt_call_back getValueCa
 	: ComponentDataClass(id, pin)
 {
 	periodicSendEnabled = true;
-	Serial.println(id);
 	lastTxTime = -1;
 	getValueCB = getValueCallBack;
 }
@@ -18,7 +17,6 @@ RealInputDataClass::RealInputDataClass(int id, int pin, long overrideTxInterval,
 	: ComponentDataClass(id, pin, overrideTxInterval)
 {
 	periodicSendEnabled = true;
-	Serial.println(id);
 	lastTxTime = -1;
 	getValueCB = getValueCallBack;
 }
@@ -26,24 +24,30 @@ RealInputDataClass::RealInputDataClass(int id, int pin, long overrideTxInterval,
 bool RealInputDataClass::getShouldSend()
 {
 	bool firstRun = lastTxTime == -1;
+	bool shouldSend = m_shouldSend;
 
 	if (periodicSendEnabled)
 	{
-		m_shouldSend = (currentTime - lastTxTime) > txInterval;
+		if ((millis() - lastTxTime) > txInterval)
+		{
+			shouldSend = true;
+		}
 	}
-	return (firstRun || m_shouldSend);
+	return (firstRun || shouldSend);
 }
 
 float RealInputDataClass::getValueToSend()
 {
-#ifdef LOWPOWERNODE
-	int sensorHoldoffTime = 2500;
-	int delayTime = sensorHoldoffTime - (millis() - thisCycleActualMillis);
-	if (delayTime > 0)
+	if (isLowPowerNode)
 	{
-		delay(delayTime);
+		int sensorHoldoffTime = 2500;
+		int delayTime = sensorHoldoffTime - (millis() - thisCycleActualMillis);
+		if (delayTime > 0)
+		{
+			delay(delayTime);
+		}
 	}
-#endif //LOWPOWERNODE
-	lastTxTime = currentTime;
+
+	lastTxTime = millis();
 	return getValueCB();
 }

@@ -33,10 +33,10 @@ bool ComponentDataClass::getShouldSend()
 {
 	if (periodicSendEnabled)
 	{
-		if (((currentTime - m_lastSendTime) > txInterval))
+		if (((millis() - m_lastSendTime) > txInterval))
 		{
 			m_shouldSend = true;
-			m_lastSendTime = currentTime;
+			m_lastSendTime = millis();
 		}
 	}
 	return m_shouldSend;

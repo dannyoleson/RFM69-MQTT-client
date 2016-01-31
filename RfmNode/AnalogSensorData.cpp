@@ -31,7 +31,7 @@ bool AnalogSensorDataClass::getShouldSend()
 	{
 		shouldSend = true;
 	}
-	else if (periodicSendEnabled && (currentTime - m_lastSendTime > txInterval)
+	else if (periodicSendEnabled && (millis() - m_lastSendTime > txInterval)
 		|| isFirstRun)
 	{
 		shouldSend = true;
@@ -43,17 +43,17 @@ bool AnalogSensorDataClass::getShouldSend()
 void AnalogSensorDataClass::readSensorValue()
 {
 	bool isFirstRun = m_currentReading == -1;
-	if ((currentTime - m_lastPollTime) > m_pollInterval ||
+	if ((millis() - m_lastPollTime) > m_pollInterval ||
 		isFirstRun)
 	{
 		m_currentReading = analogRead(m_dataPin);
-		m_lastPollTime = currentTime;
+		m_lastPollTime = millis();
 	}
 }
 
 int AnalogSensorDataClass::getValueToSend()
 {
-	m_lastSendTime = currentTime;
+	m_lastSendTime = millis();
 	m_lastSentValue = m_currentReading;
 	return m_currentReading;
 }
