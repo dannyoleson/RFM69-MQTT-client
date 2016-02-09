@@ -67,9 +67,9 @@
 //
 // CONFIGURATION PARAMETERS
 //
-#define NODEID 2 					// unique node ID within the closed network
+#define NODEID 3 					// unique node ID within the closed network
 #define NETWORKID 100					// network ID of the network
-#define ENCRYPTKEY "xxxxxxxxxxxxxxxx" 			// 16-char encryption key; same as on Gateway!
+#define ENCRYPTKEY "5029386215036408" 			// 16-char encryption key; same as on Gateway!
 #define DEBUG						// uncomment for debugging
 //#define LOWPOWERNODE				// uncomment for battery-powered node
 
@@ -77,7 +77,7 @@
 // ENABLE OR DISABLE DEVICES HERE
 //
 //#define PHOTOSENSORENABLED
-//#define REEDSWITCHENABLED
+#define REEDSWITCHENABLED
 //#define BUTTONENABLED
 //#define ACTUATORENABLED
 //#define ACT1ENABLED // an additional actuator
@@ -86,7 +86,7 @@
 //#define FLAMESENSORENABLED
 //#define GASSENSORENABLED
 #define DHTSENSORENABLED
-//#define RAINSENSORENABLED
+#define RAINSENSORENABLED
 
 // TO ADD DEVICES, DECLARE THEM BELOW ALONG WITH NECESSARY DATA AS INDICATED BY THE CLASS
 // USING A DEFINE FOR EACH DEVICE BEING ENABLED IS WHAT ALLOWS THIS CODE TO WORK ON A DEVICE
@@ -196,9 +196,10 @@ bool	setAck = false;					// send ACK message on 'SET' request
 bool	promiscuousMode = false; 			// only listen to nodes within the closed network
 bool	isLowPowerNode;
 
+long thisCycleActualMillis;
+
 #ifdef LOWPOWERNODE
 long numWakes = 0;
-long thisCycleActualMillis;
 bool firstLoop = true;
 int wakeUpPinState;
 #endif
@@ -340,7 +341,7 @@ void loop()
 	// how many times 8s an uninterrupted sleep should occur
 	// increase this number to lower node power usage
 	// at the cost of getting updates less frequently
-	const int sleepMultiplier = 11; 
+	const int sleepMultiplier = 45; 
 
 	attachInterrupt(1, wakeUpHandler, !wakeUpPinState);
 	radio.sleep();
