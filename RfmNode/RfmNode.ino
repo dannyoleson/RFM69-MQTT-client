@@ -67,9 +67,9 @@
 //
 // CONFIGURATION PARAMETERS
 //
-#define NODEID 3 					// unique node ID within the closed network
+#define NODEID 2 					// unique node ID within the closed network
 #define NETWORKID 100					// network ID of the network
-#define ENCRYPTKEY "5029386215036408" 			// 16-char encryption key; same as on Gateway!
+#define ENCRYPTKEY "xxxxxxxxxxxxxxxx" 			// 16-char encryption key; same as on Gateway!
 #define DEBUG						// uncomment for debugging
 //#define LOWPOWERNODE				// uncomment for battery-powered node
 
