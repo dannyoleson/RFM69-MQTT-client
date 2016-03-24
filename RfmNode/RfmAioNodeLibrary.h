@@ -17,7 +17,7 @@
 #include <ComponentData.h>
 
 //AIO - All In One Node
-#define VERSION "AIO V2.2"				// this value can be queried as device 3
+#define VERSION "AIO V2.1.2"	// this value can be queried as device 3
 
 #define WRITE 0
 #define READ 1
@@ -68,11 +68,14 @@
 #define ACKDEVICEID 5
 #define TOGGLEDEVICEID 6
 #define TIMERDEVICEID 7
+#define RETRYDEVICED 9
 #define WIRELESSCONNECTIONERROR 90
 #define UNSUPPORTEDDEVICE 92
 #define WAKEUPNODE 99
 
 #define SERIAL_BAUD 115200
+
+int numTxAttempts;
 
 typedef struct {					// Radio packet format
 	int		nodeID;						// node identifier

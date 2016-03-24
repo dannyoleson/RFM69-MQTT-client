@@ -12,10 +12,11 @@
 class AnalogOutputDataClass : public ComponentDataClass
 {
 protected:
-	int state;
+	int	m_state;
+	float m_scale;
 
 public:
-	AnalogOutputDataClass(int id, uint8_t pin);	
+	AnalogOutputDataClass(int id, uint8_t pin, float scale);	
 	void setState(int stateToSet);
 	int getValueToSend();
 };

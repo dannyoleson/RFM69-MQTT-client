@@ -6,10 +6,10 @@
 #include "AnalogSensorData.h"
 
 AnalogSensorDataClass::AnalogSensorDataClass(
+	int sensorDeviceId,
+	uint8_t sensorDataPin,
 	int sensorPollInterval, 
-	int sensorDeltaThreshold, 
-	uint8_t sensorDataPin, 
-	int sensorDeviceId)
+	int sensorDeltaThreshold)
 	: ComponentDataClass(sensorDeviceId, sensorDataPin)
 {
 	m_pollInterval = sensorPollInterval;

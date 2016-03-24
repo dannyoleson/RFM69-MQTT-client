@@ -5,23 +5,24 @@
 
 #include "AnalogOutputData.h"
 
-AnalogOutputDataClass::AnalogOutputDataClass(int id, uint8_t pin)
+AnalogOutputDataClass::AnalogOutputDataClass(int id, uint8_t pin, float scale = 1.0)
 	: ComponentDataClass(id, pin)
 {
 	pinMode(pin, OUTPUT);
-	state = 0;
-	analogWrite(pin, state);
+	m_state = 0;
+	m_scale = scale;
+	analogWrite(pin, m_state);
 }
 
 void AnalogOutputDataClass::setState(int stateToSet)
 {
-	state = stateToSet;
-	analogWrite(m_dataPin, stateToSet);
+	float fltState = (float)stateToSet*m_scale;
+	m_state = (int)fltState;
+	analogWrite(m_dataPin, m_state);
 }
 
 int AnalogOutputDataClass::getValueToSend()
 {
-	return state;
+	return m_state;
 }
-
 
